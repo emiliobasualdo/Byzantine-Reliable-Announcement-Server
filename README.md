@@ -31,15 +31,15 @@ keytool -exportcert -alias serverKeyPair -storetype PKCS12 \
 ```
 Generate client's key
 ```
-keytool -genkeypair -alias serverKeyPair -keyalg RSA -keysize 2048 \
+keytool -genkeypair -alias client1KeyPair -keyalg RSA -keysize 2048 \
   -dname "CN=twitter" -validity 365 -storetype PKCS12 \
-  -keystore server_keystore.p12 -storepass pass1234
+  -keystore client1_keystore.p12 -storepass pass1234
 ```
 Export client's keystore
 ```
-keytool -genkeypair -alias client1KeyPair -keyalg RSA -keysize 2048 \
-  -dname "CN=client1" -validity 365 -storetype PKCS12 \
-  -keystore client1_keystore.p12 -storepass pass1234
+keytool -exportcert -alias client1KeyPair -storetype PKCS12 \
+  -keystore client1_keystore.p12 -file \
+  client1_certificate.cer -rfc -storepass pass1234
 ```
 ### 2. Start client or server
 Pass the key `local/path/to/save/keys` as first argument to the `main` method of either java files
