@@ -16,7 +16,10 @@ Cpub = client's public key
 Determine a local path where to place store keys.  
 Ex: `/Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/`
 ### 1. Generate keys
-`cd local/path/to/save/keys`  
+```
+mkdir -p local/path/to/save/keys
+cd local/path/to/save/keys
+```  
 Generate server's private key
 ```
 keytool -genkeypair -alias serverKeyPair -keyalg RSA -keysize 2048 \
