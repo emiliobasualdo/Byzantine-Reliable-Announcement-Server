@@ -41,3 +41,5 @@ keytool -genkeypair -alias client1KeyPair -keyalg RSA -keysize 2048 \
   -dname "CN=client1" -validity 365 -storetype PKCS12 \
   -keystore client1_keystore.p12 -storepass pass1234
 ```
+### 2. Start client or server
+Pass the key `local/path/to/save/keys` as first argument to the `main` method of either java files
