@@ -3,10 +3,7 @@ package pt.tecnico.server;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import pt.tecnico.model.Announcement;
-import pt.tecnico.model.MyCrypto;
-import pt.tecnico.model.Parameters;
-import pt.tecnico.model.ServerInt;
+import pt.tecnico.model.*;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -45,17 +42,36 @@ public class ServerHttp implements HttpHandler {
     }
 
     private void handlePostRequest(HttpExchange httpExchange) throws IOException {
-        InputStream is = httpExchange.getRequestBody();
-        PublicKey publicKey;
+        String[] params = checkAndExtract(httpExchange);
+        if(params == null) return;
         try {
-            // We get the request body and decrypt it with the server's privateKey
+            String action = params[Parameters.ACTION.getIndex()];
+            if(action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null")
+            switch(Action.valueOf(action)) {
+                case READ:
+                    //twitter.read()
+                    break;
+            }
+        } catch (Exception e) {
+            handleResponse(httpExchange, 400, e.getMessage());
+            System.out.println(e.getMessage());
+            return;
+        }
+
+        handleResponse(httpExchange, 200, "everything cool");
+    }
+
+    private String[] checkAndExtract(HttpExchange httpExchange) throws IOException {
+        String[] params;
+        try {
+            InputStream is = httpExchange.getRequestBody();
             String reqBodyB64 = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             if (reqBodyB64.length() < 256 || !reqBodyB64.contains("\n")) throw new IllegalArgumentException("Message seems too short");
             byte[] sig = MyCrypto.decodeB64(reqBodyB64.substring(0, reqBodyB64.indexOf("\n")));
             // After the signature comes the real clients request, whose params are \n separated
             String clientRequest = reqBodyB64.substring(reqBodyB64.indexOf("\n") + 1);
-            String[] params = clientRequest.split("\n");
-            publicKey = MyCrypto.publicKeyFromB64String(params[0]);
+            params = clientRequest.split("\n");
+            PublicKey publicKey = MyCrypto.publicKeyFromB64String(params[Parameters.PUBLICKEY.getIndex()]);
             // We verify that the message was not altered
             if (!MyCrypto.verifySignature(sig, clientRequest.getBytes(), publicKey)) {
                 throw new IllegalArgumentException("Signature does not match the body");
@@ -64,14 +80,14 @@ public class ServerHttp implements HttpHandler {
             handleResponse(httpExchange, 400, e.getMessage());
             System.out.println(e.getMessage());
             httpExchange.close();
-            return;
+            return null;
         } catch (Exception e) {
             handleResponse(httpExchange, 500, e.getMessage());
             System.err.println(e.getMessage());
             httpExchange.close();
-            return;
+            return null;
         }
-        handleResponse(httpExchange, 200, "everything cool");
+        return params;
     }
 
     private void handleResponse(HttpExchange httpExchange, int respCode, String response) throws IOException {
