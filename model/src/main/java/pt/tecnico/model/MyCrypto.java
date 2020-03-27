@@ -65,14 +65,37 @@ public class MyCrypto {
         return cipher.doFinal(msg);
     }
 
-    public static byte[] encrypt(byte[] messageHash, PrivateKey priv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    public static byte[] encrypt(byte[] data, PrivateKey priv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance(KEY_ALG);
         cipher.init(Cipher.ENCRYPT_MODE, priv);
-        return cipher.doFinal(messageHash);
+        int missing = data.length;
+        int blockSize = cipher.getBlockSize();
+        byte[] resp = new byte[data.length];
+        byte[] slice;
+        int i = 0;
+        do {
+            slice = Arrays.copyOfRange(data, i, i + blockSize);
+            missing-=blockSize;
+            System.arraycopy(cipher.update(slice), 0, resp, 0, slice.length);
+        } while (missing > blockSize);
+        slice = Arrays.copyOfRange(data, i, i + blockSize);
+        byte[] last =  cipher.doFinal(slice);
+        System.arraycopy(last, 0, resp, 0, last.length);
+        return resp;
+    }
+
+    public static byte[] sign(byte[] data, PrivateKey priv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        Cipher cipher = Cipher.getInstance(KEY_ALG);
+        cipher.init(Cipher.ENCRYPT_MODE, priv);
+        return cipher.doFinal(data);
     }
 
     public static byte[] digestAndSign(byte[] messageBytes, PrivateKey priv) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        return encrypt(digest(messageBytes), priv);
+        return sign(digest(messageBytes), priv);
+    }
+
+    public static String digestAndSignToB64(byte[] msg, PrivateKey priv) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        return Base64.getEncoder().encodeToString(MyCrypto.digestAndSign(msg, priv));
     }
 
     public static boolean verifySignature(byte[] encryptedMessageHash, byte[] messageBytes, PublicKey pub) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
@@ -97,32 +120,25 @@ public class MyCrypto {
     }
 
     public static String publicKeyToB64String(PublicKey key){
-        if (key  == null) return null;
-        byte[] encodedPublicKey = key.getEncoded();
-        return Base64.getEncoder().encodeToString(encodedPublicKey);
+        if (key  == null) throw new IllegalArgumentException("key is null");
+        return Base64.getEncoder().encodeToString(key.getEncoded());
     }
 
     public static PublicKey publicKeyFromB64String(String key) throws NoSuchAlgorithmException, InvalidKeySpecException {
         if (key  == null) return null;
-        byte[] byteKey = Base64.getDecoder().decode(key.getBytes());
+        byte[] byteKey = Base64.getDecoder().decode(key);
         X509EncodedKeySpec X509publicKey = new X509EncodedKeySpec(byteKey);
         KeyFactory kf = KeyFactory.getInstance(MyCrypto.KEY_ALG);
         return kf.generatePublic(X509publicKey);
-    }
-
-    public static String signatureToB64String(byte[] sig){
-        if (sig == null) return null;
-        return Base64.getEncoder().encodeToString(sig);
-    }
-
-    public static byte[] byteArrFromB64String(String str){
-        if (str == null) return null;
-        return Base64.getDecoder().decode(str.getBytes());
     }
 
     public static KeyPair generateKeyPair() throws NoSuchAlgorithmException {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance(KEY_ALG);
         kpg.initialize(KEY_SIZE);
         return kpg.generateKeyPair();
+    }
+
+    public static byte[] decodeB64(String str) {
+        return Base64.getDecoder().decode(str);
     }
 }

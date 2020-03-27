@@ -2,6 +2,7 @@ package pt.tecnico.server;
 
 
 import pt.tecnico.model.Announcement;
+import pt.tecnico.model.ServerInt;
 
 import java.security.*;
 import java.util.HashMap;
@@ -9,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 
-public class Twitter {
+public class Twitter implements ServerInt {
 
     private Map<PublicKey, User> publicKeys = new HashMap<>();
     private Board generalBoard = new Board();
@@ -64,5 +65,30 @@ public class Twitter {
         numberheck(number);
         System.out.println("reading general");
         return generalBoard.get(number);
+    }
+
+    @Override
+    public void register(PublicKey publicKey, byte[] signature) throws IllegalArgumentException {
+        
+    }
+
+    @Override
+    public boolean post(PublicKey key, String message, List<Announcement> announcements, byte[] signature) throws IllegalArgumentException {
+        return false;
+    }
+
+    @Override
+    public boolean postGeneral(PublicKey key, String message, List<Announcement> announcements, byte[] signature) throws IllegalArgumentException {
+        return false;
+    }
+
+    @Override
+    public List<Announcement> read(PublicKey key, int number, byte[] signature) throws IllegalArgumentException, InvalidKeyException {
+        return null;
+    }
+
+    @Override
+    public List<Announcement> readGeneral(int number, byte[] signature) throws IllegalArgumentException {
+        return null;
     }
 }

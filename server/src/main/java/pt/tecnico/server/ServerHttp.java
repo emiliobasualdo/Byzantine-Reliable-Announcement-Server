@@ -36,8 +36,8 @@ public class ServerHttp implements HttpHandler {
 
     @Override
     public void handle(HttpExchange httpExchange) throws IOException {
-        String response=null;
-        if("POST".equals(httpExchange.getRequestMethod())) {
+        String response = null;
+        if ("POST".equals(httpExchange.getRequestMethod())) {
             handlePostRequest(httpExchange);
         } else {
             httpExchange.close();
@@ -45,41 +45,36 @@ public class ServerHttp implements HttpHandler {
     }
 
     private void handlePostRequest(HttpExchange httpExchange) throws IOException {
-        InputStream is =  httpExchange.getRequestBody();
-        String decryptedBody;
+        InputStream is = httpExchange.getRequestBody();
         PublicKey publicKey;
         try {
             // We get the request body and decrypt it with the server's privateKey
-            String requestBody = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            // TODO break blocks into smaller ones
-            if (requestBody.length() < 256) throw new IllegalArgumentException("Message seems too short");
-            decryptedBody = new String(MyCrypto.decrypt(requestBody.getBytes(), privateKey));
-            // We extract the parameters that are separated by \n
-            // The first parameter is the signature of the client's request
-            byte[] signature = decryptedBody.substring(0, decryptedBody.indexOf("\n")).getBytes();
+            String reqBodyB64 = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            if (reqBodyB64.length() < 256 || !reqBodyB64.contains("\n")) throw new IllegalArgumentException("Message seems too short");
+            byte[] sig = MyCrypto.decodeB64(reqBodyB64.substring(0, reqBodyB64.indexOf("\n")));
             // After the signature comes the real clients request, whose params are \n separated
-            String clientRequest = decryptedBody.substring(decryptedBody.indexOf("\n"));
+            String clientRequest = reqBodyB64.substring(reqBodyB64.indexOf("\n") + 1);
             String[] params = clientRequest.split("\n");
-            publicKey = MyCrypto.publicKeyFromB64String(params[Parameters.PUBLICKEY.getIndex()]);
+            publicKey = MyCrypto.publicKeyFromB64String(params[0]);
             // We verify that the message was not altered
-            if(!MyCrypto.verifySignature(signature, clientRequest.getBytes(), publicKey)) {
-                throw  new IllegalArgumentException("Signature does not match the body");
+            if (!MyCrypto.verifySignature(sig, clientRequest.getBytes(), publicKey)) {
+                throw new IllegalArgumentException("Signature does not match the body");
             }
-        } catch (IOException | NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException | InvalidKeySpecException e) {
-            handleResponse(httpExchange, 500, e.getMessage());
-            System.err.println(e.getMessage());
-            httpExchange.close();
-            return;
-        } catch (IllegalArgumentException | BadPaddingException e ) {
+        } catch (IllegalArgumentException | BadPaddingException | InvalidKeySpecException e) {
             handleResponse(httpExchange, 400, e.getMessage());
             System.out.println(e.getMessage());
+            httpExchange.close();
+            return;
+        } catch (Exception e) {
+            handleResponse(httpExchange, 500, e.getMessage());
+            System.err.println(e.getMessage());
             httpExchange.close();
             return;
         }
         handleResponse(httpExchange, 200, "everything cool");
     }
 
-    private void handleResponse(HttpExchange httpExchange, int respCode, String response)  throws  IOException {
+    private void handleResponse(HttpExchange httpExchange, int respCode, String response) throws IOException {
         OutputStream outputStream = httpExchange.getResponseBody();
         // this line is a must
         httpExchange.sendResponseHeaders(respCode, response.length());
@@ -91,7 +86,7 @@ public class ServerHttp implements HttpHandler {
     public static void main(String[] args) {
         try {
             // We need the the path of the folder where to save the keys
-            if(args.length == 0) throw new IllegalArgumentException("Specify the path for the keys");
+            if (args.length == 0) throw new IllegalArgumentException("Specify the path for the keys");
             // We get the server's private key
             PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], SERVER_ALIAS);
             // We start the server

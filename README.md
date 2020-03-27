@@ -17,8 +17,8 @@ Determine a local path where to place store keys.
 Ex: `/Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/`
 ### 1. Generate keys
 ```
-mkdir -p local/path/to/save/keys
-cd local/path/to/save/keys
+mkdir -p /local/path/to/save/keys
+cd /local/path/to/save/keys
 ```  
 Generate server's private key
 ```
@@ -45,4 +45,6 @@ keytool -exportcert -alias client1KeyPair -storetype PKCS12 \
   client1_certificate.cer -rfc -storepass pass1234
 ```
 ### 2. Start client or server
-Pass the key `local/path/to/save/keys` as first argument to the `main` method of either java files
+Pass the key `/local/path/to/save/keys` as first argument to the `main` method of either java files
+
+#
