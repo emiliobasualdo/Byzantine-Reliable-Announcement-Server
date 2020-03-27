@@ -46,7 +46,7 @@ public class ServerHttp implements HttpHandler {
         if(params == null) return;
         try {
             String action = params[Parameters.ACTION.getIndex()];
-            if(action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null")
+            if(action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
             switch(Action.valueOf(action)) {
                 case READ:
                     //twitter.read()
