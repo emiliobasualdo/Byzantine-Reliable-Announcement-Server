@@ -1,11 +1,13 @@
 package pt.tecnico.server;
 
 import com.sun.net.httpserver.HttpExchange;
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pt.tecnico.model.Action;
 import pt.tecnico.model.MyCrypto;
+import pt.tecnico.model.Parameters;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -54,6 +56,7 @@ public class ServerHttpTest {
     };
 
     private void setRequestBody(String requestBody) {
+        System.out.println(requestBody);
         InputStream is = new ByteArrayInputStream(requestBody.getBytes());
         when(httpExchange.getRequestBody()).thenReturn(is);
     }
@@ -61,13 +64,14 @@ public class ServerHttpTest {
     @Test
     void test_correct_example_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
         // SETUP
-        StringBuilder sb = new StringBuilder();
-        sb.append(MyCrypto.publicKeyToB64String(clientPublicKey)).append("\n");
-        sb.append(Action.READ.name()).append("\n");
-        System.out.println(sb.toString());
-        String sig = MyCrypto.digestAndSignToB64(sb.toString().getBytes(), clientPrivateKey);
-        String body = sig + "\n" + sb.toString();
-        setRequestBody(body);
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.board_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.number.name(), 3);
+        jo.put(Parameters.action.name(), Action.READ.name());
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        setRequestBody(jo.toString());
         // EXERCISE
         server.handle(httpExchange);
         // ASSERT

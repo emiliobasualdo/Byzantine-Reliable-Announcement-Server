@@ -3,17 +3,20 @@ package pt.tecnico.server;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import pt.tecnico.model.*;
 
 import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import java.io.*;
+import java.lang.reflect.Array;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -42,15 +45,41 @@ public class ServerHttp implements HttpHandler {
     }
 
     private void handlePostRequest(HttpExchange httpExchange) throws IOException {
-        String[] params = checkAndExtract(httpExchange);
+        JSONObject params = checkAndExtract(httpExchange);
         if(params == null) return;
         try {
-            String action = params[Parameters.ACTION.getIndex()];
+            String action = params.getString(Parameters.action.name());
             if(action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
+            int number;
+            PublicKey publicKey;
+            String msg;
+            List<Integer> ann;
             switch(Action.valueOf(action)) {
-                case READ:
-                    //twitter.read()
+                case REGISTER:
                     break;
+                case READ:
+                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.board_public_key.name()));
+                    number = params.getInt(Parameters.number.name());
+                    twitter.read(publicKey, number);
+                    break;
+                case READGENERAL:
+                    number = params.getInt(Parameters.number.name());
+                    twitter.readGeneral(number);
+                    break;
+                case POST:
+                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.client_public_key.name()));
+                    msg = params.getString(Parameters.message.name());
+                    ann = (List<Integer>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
+                    twitter.post(publicKey, msg, ann);
+                    break;
+                case POSTGENERAL:
+                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.client_public_key.name()));
+                    msg = params.getString(Parameters.message.name());
+                    ann = (List<Integer>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
+                    twitter.postGeneral(publicKey, msg, ann);
+                    break;
+                default:
+                    throw new IllegalStateException("Unexpected value: " + Action.valueOf(action));
             }
         } catch (Exception e) {
             handleResponse(httpExchange, 400, e.getMessage());
@@ -61,19 +90,24 @@ public class ServerHttp implements HttpHandler {
         handleResponse(httpExchange, 200, "everything cool");
     }
 
-    private String[] checkAndExtract(HttpExchange httpExchange) throws IOException {
-        String[] params;
+    private List jsonArrayToList(JSONArray jsonArray) {
+        List resp = new ArrayList();
+        jsonArray.forEach(resp::add);
+        return resp;
+    }
+
+    private JSONObject checkAndExtract(HttpExchange httpExchange) throws IOException {
+        JSONObject jo;
         try {
             InputStream is = httpExchange.getRequestBody();
-            String reqBodyB64 = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            if (reqBodyB64.length() < 256 || !reqBodyB64.contains("\n")) throw new IllegalArgumentException("Message seems too short");
-            byte[] sig = MyCrypto.decodeB64(reqBodyB64.substring(0, reqBodyB64.indexOf("\n")));
+            jo = new JSONObject(new String(is.readAllBytes(), StandardCharsets.UTF_8));
+            if (jo.length() == 0) throw new IllegalArgumentException("Message seems too short");
+            byte[] sig = MyCrypto.decodeB64(jo.getString(Parameters.signature.name()));
+            jo.remove(Parameters.signature.name());
             // After the signature comes the real clients request, whose params are \n separated
-            String clientRequest = reqBodyB64.substring(reqBodyB64.indexOf("\n") + 1);
-            params = clientRequest.split("\n");
-            PublicKey publicKey = MyCrypto.publicKeyFromB64String(params[Parameters.PUBLICKEY.getIndex()]);
+            PublicKey publicKey = MyCrypto.publicKeyFromB64String(jo.getString(Parameters.client_public_key.name()));
             // We verify that the message was not altered
-            if (!MyCrypto.verifySignature(sig, clientRequest.getBytes(), publicKey)) {
+            if (!MyCrypto.verifySignature(sig, jo.toString().getBytes(), publicKey)) {
                 throw new IllegalArgumentException("Signature does not match the body");
             }
         } catch (IllegalArgumentException | BadPaddingException | InvalidKeySpecException e) {
@@ -87,7 +121,7 @@ public class ServerHttp implements HttpHandler {
             httpExchange.close();
             return null;
         }
-        return params;
+        return jo;
     }
 
     private void handleResponse(HttpExchange httpExchange, int respCode, String response) throws IOException {

@@ -37,17 +37,17 @@ public class Twitter implements ServerInt {
     }
 
     @Override
-    public boolean post(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
+    public boolean post(PublicKey key, String message, List<Integer> announcements) throws IllegalArgumentException {
         return false;
     }
 
     @Override
-    public boolean postGeneral(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
+    public boolean postGeneral(PublicKey key, String message, List<Integer> announcements) throws IllegalArgumentException {
         return false;
     }
 
     @Override
-    public List<Announcement> read(PublicKey key, int number) throws IllegalArgumentException, InvalidKeyException {
+    public List<Announcement> read(PublicKey key, int number) throws IllegalArgumentException {
         return null;
     }
 

@@ -66,7 +66,6 @@ public class Client {
         // we XOR the hashes
         byte[] fh = MyCrypto.XOR(mh, ah);
         // we sign the new hash and post
-        server.post(pub, "Hola Soy pilo basualdo, buen día", announcements, MyCrypto.encrypt(fh, priv));
     }
 
 }
