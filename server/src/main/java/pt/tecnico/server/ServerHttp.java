@@ -146,7 +146,7 @@ public class ServerHttp implements HttpHandler {
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
             server.setExecutor(threadPoolExecutor);
             server.start();
-            System.out.println(" Server started on port 8001");
+            System.out.println("Server started on port 8001");
         } catch (Exception e) {
             System.err.println("Server exception: " + e.toString());
             e.printStackTrace();

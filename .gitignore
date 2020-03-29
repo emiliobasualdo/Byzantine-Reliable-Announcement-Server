@@ -130,4 +130,4 @@ out
 .DS_Store
 .idea/
 *.iml
-**.iml
+**/*.iml
