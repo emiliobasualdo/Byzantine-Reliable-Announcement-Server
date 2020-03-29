@@ -5,18 +5,22 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import pt.tecnico.model.*;
+import pt.tecnico.model.Action;
+import pt.tecnico.model.Announcement;
+import pt.tecnico.model.MyCrypto;
+import pt.tecnico.model.Parameters;
 
 import javax.crypto.BadPaddingException;
-import java.io.*;
-import java.lang.reflect.Array;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.security.*;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -46,15 +50,15 @@ public class ServerHttp implements HttpHandler {
 
     private void handlePostRequest(HttpExchange httpExchange) throws IOException {
         JSONObject params = checkAndExtract(httpExchange);
-        if(params == null) return;
+        if (params == null) return;
         try {
             String action = params.getString(Parameters.action.name());
-            if(action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
+            if (action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
             int number;
             PublicKey publicKey;
             String msg;
-            List<Integer> ann;
-            switch(Action.valueOf(action)) {
+            List<Announcement> ann;
+            switch (Action.valueOf(action)) {
                 case REGISTER:
                     break;
                 case READ:
@@ -69,13 +73,13 @@ public class ServerHttp implements HttpHandler {
                 case POST:
                     publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.client_public_key.name()));
                     msg = params.getString(Parameters.message.name());
-                    ann = (List<Integer>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
+                    ann = (List<Announcement>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
                     twitter.post(publicKey, msg, ann);
                     break;
                 case POSTGENERAL:
                     publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.client_public_key.name()));
                     msg = params.getString(Parameters.message.name());
-                    ann = (List<Integer>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
+                    ann = (List<Announcement>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
                     twitter.postGeneral(publicKey, msg, ann);
                     break;
                 default:

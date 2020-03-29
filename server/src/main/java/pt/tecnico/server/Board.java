@@ -3,11 +3,17 @@ package pt.tecnico.server;
 
 import pt.tecnico.model.Announcement;
 
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Board {
+    private PublicKey publicKey;
     private List<Announcement> announcements = new ArrayList<>();;
+
+    public PublicKey getPublicKey() {
+        return publicKey;
+    }
 
     public void post(Announcement announcement) {
         announcements.add(announcement);

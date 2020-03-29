@@ -22,7 +22,7 @@ Content-Type: application/json
 Determine a local path where are located keystores.  
 Ex: `/Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/`
 ### 1. Generate keys
-```bash
+```shell script
 mkdir -p /local/path/to/save/keys
 cd /local/path/to/save/keys
 ```
