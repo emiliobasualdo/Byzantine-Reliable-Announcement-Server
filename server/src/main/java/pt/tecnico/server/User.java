@@ -14,7 +14,7 @@ public class User implements Serializable {
     public User(PublicKey pb, String name) {
         this.name = name;
         this.pb = pb;
-        board = new Board();
+        board = new Board(pb);
     }
 
     public String getName() {

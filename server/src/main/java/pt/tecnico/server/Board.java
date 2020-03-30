@@ -11,6 +11,10 @@ public class Board {
     private PublicKey publicKey;
     private List<Announcement> announcements = new ArrayList<>();;
 
+    public Board(PublicKey publicKey) {
+        this.publicKey = publicKey;
+    }
+
     public PublicKey getPublicKey() {
         return publicKey;
     }

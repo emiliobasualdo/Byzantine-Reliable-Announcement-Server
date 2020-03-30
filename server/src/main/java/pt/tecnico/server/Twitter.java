@@ -1,9 +1,12 @@
 package pt.tecnico.server;
 
 import pt.tecnico.model.Announcement;
+import pt.tecnico.model.MyCrypto;
 import pt.tecnico.model.ServerInt;
 
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,8 +17,15 @@ import java.util.Map;
  */
 public class Twitter implements ServerInt {
     private Map<PublicKey, User> publicKeys = new HashMap<>(); //TODO: populate the hashmap with db values
-    private Board generalBoard = new Board(); //TODO: generate keypair for the general board
-    private Connect conn = new Connect(generalBoard); //init the database with the general board
+    private Board generalBoard;
+    private Connect conn;
+
+    public Twitter() throws NoSuchAlgorithmException {
+        PublicKey board_key = MyCrypto.generateKeyPair().getPublic(); //TODO: generate keypair for the general board
+        this.generalBoard = new Board(board_key);
+
+        conn = new Connect(generalBoard); //init the database with the general board
+    }
 
     /**
      * Check if a public key is already registered
@@ -65,14 +75,14 @@ public class Twitter implements ServerInt {
     public boolean post(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
         publicKeyCheck(key);
         postCheck(message, announcements);
-        return conn.insertAnnouncement(key, key, message);
+        return conn.insertAnnouncement(key, key, message, announcements);
     }
 
     @Override
     public boolean postGeneral(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
         publicKeyCheck(key);
         postCheck(message, announcements);
-        return conn.insertAnnouncement(generalBoard.getPublicKey(), key, message);
+        return conn.insertAnnouncement(generalBoard.getPublicKey(), key, message, announcements);
     }
 
     @Override
