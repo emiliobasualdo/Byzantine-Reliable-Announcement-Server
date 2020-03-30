@@ -1,6 +1,7 @@
 package pt.tecnico.server;
 
 import com.sun.net.httpserver.HttpExchange;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,14 +17,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Array;
 import java.security.*;
-import java.util.Arrays;
-import java.util.Base64;
+import java.util.List;
 
 import static org.mockito.Mockito.*;
 
-public class ServerHttpTest {
+class ServerHttpTest {
 
     private static PrivateKey serverPrivateKey;
     private static PublicKey serverPublicKey;
@@ -62,13 +61,78 @@ public class ServerHttpTest {
     }
 
     @Test
-    void test_correct_example_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+    void test_correct_register_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.action.name(), Action.REGISTER.name());
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(200), anyLong());
+    }
+
+    @Test
+    void test_correct_read_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
         // SETUP
         JSONObject jo = new JSONObject();
         jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
         jo.put(Parameters.board_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
         jo.put(Parameters.number.name(), 3);
         jo.put(Parameters.action.name(), Action.READ.name());
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(200), anyLong());
+    }
+
+    @Test
+    void test_correct_read_general_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.number.name(), 3);
+        jo.put(Parameters.action.name(), Action.READGENERAL.name());
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(200), anyLong());
+    }
+
+    @Test
+    void test_correct_post_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.action.name(), Action.POST.name());
+        jo.put(Parameters.message.name(), "Cobyd-briant -2019");
+        jo.put(Parameters.announcements.name(), new JSONArray(List.of(3,2,1)));
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(200), anyLong());
+    }
+
+    @Test
+    void test_correct_post_general_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.action.name(), Action.POSTGENERAL.name());
+        jo.put(Parameters.message.name(), "Hola soy pilo");
+        jo.put(Parameters.announcements.name(), new JSONArray(List.of(3,2,1)));
         String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
         jo.put(Parameters.signature.name(), sig);
         setRequestBody(jo.toString());
@@ -106,5 +170,76 @@ public class ServerHttpTest {
         server.handle(httpExchange);
         // ASSERT
         verify(httpExchange).sendResponseHeaders(eq(400), anyLong());
+    }
+
+    @Test
+    void test_altered_signature_returns_400() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.action.name(), Action.POST.name());
+        jo.put(Parameters.message.name(), "Cobyd-briant -2019");
+        jo.put(Parameters.announcements.name(), new JSONArray(List.of(3,2,1)));
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), "aa" + sig.substring(2));
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(400), anyLong());
+    }
+
+    @Test
+    void test_altered_message_returns_400() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.action.name(), Action.POST.name());
+        jo.put(Parameters.message.name(), "Cobyd-briant -2019");
+        jo.put(Parameters.announcements.name(), new JSONArray(List.of(3,2,1)));
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        // we alter the message
+        jo.remove(Parameters.message.name());
+        jo.put(Parameters.message.name(), "aCobyd-briant -2019");
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(400), anyLong());
+    }
+
+    @Test
+    void test_illegal_action_returns_400() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.action.name(), "Action");
+        jo.put(Parameters.message.name(), "Cobyd-briant -2019");
+        jo.put(Parameters.announcements.name(), new JSONArray(List.of(3,2,1)));
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(400), anyLong());
+    }
+
+    @Test
+    void test_big_body_returns_200() throws IOException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        // SETUP
+        JSONObject jo = new JSONObject();
+        jo.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        jo.put(Parameters.action.name(), Action.POSTGENERAL.name());
+        jo.put(Parameters.message.name(), randString);
+        jo.put(Parameters.announcements.name(), new JSONArray(List.of(3,2,1,1,1,1,2,3,3,4,5,4,3,3,3,2,3,2,1,1,1,1,2,3,3,4,5,4,3,3,3,2,3,2,1,1,1,1,2,3,3,4,5,4,3,3,3,2,3,2,1,1,1,1,2,3,3,4,5,4,3,3,3,2,3,2,1,1,1,1,2,3,3,4,5,4,3,3,3,2,3,2,1,1,1,1,2,3,3,4,5,4,3,3,3,2)));
+        String sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), clientPrivateKey);
+        jo.put(Parameters.signature.name(), sig);
+        setRequestBody(jo.toString());
+        // EXERCISE
+        server.handle(httpExchange);
+        // ASSERT
+        verify(httpExchange).sendResponseHeaders(eq(200), anyLong());
     }
 }

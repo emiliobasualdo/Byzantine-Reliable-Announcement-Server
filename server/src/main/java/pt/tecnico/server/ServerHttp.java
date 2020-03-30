@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import pt.tecnico.model.*;
 
@@ -56,6 +57,8 @@ public class ServerHttp implements HttpHandler {
             List<Integer> ann;
             switch(Action.valueOf(action)) {
                 case REGISTER:
+                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.board_public_key.name()));
+                    twitter.register(publicKey);
                     break;
                 case READ:
                     publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.board_public_key.name()));
@@ -110,7 +113,7 @@ public class ServerHttp implements HttpHandler {
             if (!MyCrypto.verifySignature(sig, jo.toString().getBytes(), publicKey)) {
                 throw new IllegalArgumentException("Signature does not match the body");
             }
-        } catch (IllegalArgumentException | BadPaddingException | InvalidKeySpecException e) {
+        } catch (IllegalArgumentException | BadPaddingException | InvalidKeySpecException | JSONException e) {
             handleResponse(httpExchange, 400, e.getMessage());
             System.out.println(e.getMessage());
             httpExchange.close();

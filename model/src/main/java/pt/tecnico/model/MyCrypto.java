@@ -65,25 +65,6 @@ public class MyCrypto {
         return cipher.doFinal(msg);
     }
 
-    public static byte[] encrypt(byte[] data, PrivateKey priv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        Cipher cipher = Cipher.getInstance(KEY_ALG);
-        cipher.init(Cipher.ENCRYPT_MODE, priv);
-        int missing = data.length;
-        int blockSize = cipher.getBlockSize();
-        byte[] resp = new byte[data.length];
-        byte[] slice;
-        int i = 0;
-        do {
-            slice = Arrays.copyOfRange(data, i, i + blockSize);
-            missing-=blockSize;
-            System.arraycopy(cipher.update(slice), 0, resp, 0, slice.length);
-        } while (missing > blockSize);
-        slice = Arrays.copyOfRange(data, i, i + blockSize);
-        byte[] last =  cipher.doFinal(slice);
-        System.arraycopy(last, 0, resp, 0, last.length);
-        return resp;
-    }
-
     public static byte[] sign(byte[] data, PrivateKey priv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance(KEY_ALG);
         cipher.init(Cipher.ENCRYPT_MODE, priv);
