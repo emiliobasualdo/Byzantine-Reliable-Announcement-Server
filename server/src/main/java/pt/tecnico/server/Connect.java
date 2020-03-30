@@ -1,9 +1,11 @@
 package pt.tecnico.server;
 
+import pt.tecnico.model.Announcement;
 import pt.tecnico.model.MyCrypto;
 
 import java.security.PublicKey;
 import java.sql.*;
+import java.util.List;
 
 /**
  * Connect class to bind the DPAS to a local or remote DBMS
@@ -61,7 +63,9 @@ public class Connect {
         String rel_announcements_referring = "CREATE TABLE IF NOT EXISTS rel_announcements_referring (\n"
                 + "    announcement_id integer NOT NULL,\n"
                 + "    announcement_referring_id integer NOT NULL,\n"
-                + "    PRIMARY KEY (announcement_id, announcement_referring_id)\n"
+                + "    PRIMARY KEY (announcement_id, announcement_referring_id),\n"
+                + "    FOREIGN KEY (announcement_id) REFERENCES announcements(id),\n"
+                + "    FOREIGN KEY (announcement_referring_id) REFERENCES announcements(id)\n"
                 + ");";
 
         try (Connection conn = this.connect();
@@ -156,10 +160,11 @@ public class Connect {
      * @param board_key
      * @param client_key
      * @param message
+     * @param announcements
      * @return true if the insert was successful, false otherwise
      * @throws IllegalArgumentException
      */
-    public boolean insertAnnouncement(PublicKey board_key, PublicKey client_key, String message) throws IllegalArgumentException {
+    public boolean insertAnnouncement(PublicKey board_key, PublicKey client_key, String message, List<Announcement> announcements) throws IllegalArgumentException { //TODO: add referring announcements
         Integer boardId = findIdByKey(board_key);
         if (boardId == null) throw new IllegalArgumentException("No such key");
 
