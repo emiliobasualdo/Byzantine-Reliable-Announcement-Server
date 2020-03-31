@@ -1,9 +1,6 @@
 package pt.tecnico.model;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.*;
@@ -11,8 +8,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Arrays;
-import java.util.Base64;
+import java.util.*;
 
 // https://www.baeldung.com/java-digital-signature
 public class MyCrypto {
@@ -21,6 +17,7 @@ public class MyCrypto {
     public static final int KEY_SIZE = 2048;
     private static final String KEY_STORE = "PKCS12";
     private static final String PASSWORD = "pass1234";
+    public static final int NONCE_LENGTH = UUID.randomUUID().toString().length();
 
     private static final String SERVER_KEYSTORE = "server_keystore.p12";
     public static final String SERVER_ALIAS = "serverKeyPair";
@@ -54,6 +51,7 @@ public class MyCrypto {
     }
 
     public static byte[] digest(byte[] messageBytes) throws NoSuchAlgorithmException {
+        //Mac.getInstance("HmacSHA512") // todo check if MessageDigest or MAC or HMAC should be used
         MessageDigest md = MessageDigest.getInstance(DIGEST_ALG);
         return md.digest(messageBytes);
     }
@@ -85,10 +83,13 @@ public class MyCrypto {
         cipher.init(Cipher.DECRYPT_MODE, pub);
         byte[] decryptedMessageHash = cipher.doFinal(encryptedMessageHash);
         // hash the message
-        MessageDigest md = MessageDigest.getInstance(DIGEST_ALG);
-        byte[] newMessageHash = md.digest(messageBytes);
+        byte[] newMessageHash = digest(messageBytes);
         // compare results
         return Arrays.equals(decryptedMessageHash, newMessageHash);
+    }
+
+    public static String getRandomNonce() {
+        return UUID.randomUUID().toString();
     }
 
     public static byte[] XOR(byte[] a, byte[] b) {

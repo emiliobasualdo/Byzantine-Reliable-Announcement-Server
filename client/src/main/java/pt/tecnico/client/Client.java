@@ -54,18 +54,7 @@ public class Client {
     }
 
     private static void post(String msg, List<Announcement> announcements) throws IOException, NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        if (announcements == null) announcements = new ArrayList<>();
-        // We hash the message
-        byte[] mh = MyCrypto.digest(msg.getBytes());
-        // we hash the announcemtns list
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(announcements);
-        byte[] announcmentsBytes = bos.toByteArray();
-        byte[] ah = MyCrypto.digest(announcmentsBytes);
-        // we XOR the hashes
-        byte[] fh = MyCrypto.XOR(mh, ah);
-        // we sign the new hash and post
+
     }
 
 }
