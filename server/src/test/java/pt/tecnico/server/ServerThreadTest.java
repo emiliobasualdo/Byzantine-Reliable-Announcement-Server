@@ -14,7 +14,6 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.*;
@@ -50,7 +49,7 @@ class ServerThreadTest {
     };
 
     @BeforeEach
-    void beforeEach() throws IOException {
+    void beforeEach() {
         PrintWriter out = mock(PrintWriter.class);
         BufferedReader in = mock(BufferedReader.class);
         clientSocket = mock(Socket.class);
@@ -328,29 +327,4 @@ class ServerThreadTest {
         // ASSERT
         verify(httpExchange).sendResponseHeaders(eq(200), anyLong());
     }*/
-
-    private static class Client {
-        private Socket clientSocket;
-        private PrintWriter out;
-        private BufferedReader in;
-
-        public void startConnection(String ip, int port) throws IOException {
-            clientSocket = new Socket(ip, port);
-            out = new PrintWriter(clientSocket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        }
-
-        public String sendMessage(String msg, boolean close) throws IOException {
-            out.println(msg);
-            String resp = in.readLine();
-            if (close) stopConnection();
-            return resp;
-        }
-
-        public void stopConnection() throws IOException {
-            in.close();
-            out.close();
-            clientSocket.close();
-        }
-    }
 }
