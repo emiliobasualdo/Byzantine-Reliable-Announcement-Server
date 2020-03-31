@@ -5,12 +5,18 @@ import org.beryx.textio.TextIoFactory;
 import org.json.JSONObject;
 import pt.tecnico.model.Announcement;
 import pt.tecnico.model.MyCrypto;
+import pt.tecnico.model.Parameters;
 import pt.tecnico.model.ServerInt;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -29,6 +35,9 @@ public class Client implements ServerInt {
     private Socket socket;
     private PrintWriter out;
     private BufferedReader in;
+
+    private String serverNonce;
+    private String clientNonce;
 
     private Client(Socket socket, PrintWriter out, BufferedReader in) {
         this.socket = socket;
@@ -56,22 +65,19 @@ public class Client implements ServerInt {
         }
     }
 
-    private void start() throws InvalidKeySpecException, NoSuchAlgorithmException {
+    private void start() throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException {
         TextIO textIO = TextIoFactory.getTextIO();
         System.out.println("Hello. This is the client for the for the Highly Dependable Announcement Server.");
-        boolean end = false;
         List<String> enumNames = Stream.of(Options.values())
                 .map(Enum::name)
                 .collect(Collectors.toList());
-        while (!end) {
+        while (true) {
             String option = textIO.newStringInputReader()
                     .withNumberedPossibleValues(enumNames)
                     .read("What do you want to do?");
             System.out.println(option);
 
-            String who, msg;
-            Integer num;
-            List<Integer> list;
+            Runnable method = () -> {};
             switch (Options.valueOf(option)){
                 case PRINT_MY_PUBLIC_KEY:
                     System.out.println(pub);
@@ -80,34 +86,84 @@ public class Client implements ServerInt {
                     System.out.println(serverPublicKey);
                     break;
                 case REGISTER:
-                    register(pub);
+                    method = () -> register(pub);
                     break;
                 case READ:
-                    who = textIO.newStringInputReader().read("From who do you want to read from?");
-                    num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
-                    read(MyCrypto.publicKeyFromB64String(who), num);
+                    method = () -> {
+                        String who = textIO.newStringInputReader().read("From who do you want to read from?");
+                        Integer num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
+                        try {
+                            read(MyCrypto.publicKeyFromB64String(who), num);
+                        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+                            System.err.println("The public key does not seem valid");
+                        }
+                    };
                     break;
                 case READ_GENERAL:
-                    num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
-                    readGeneral(num);
+                    method = () -> {
+                        Integer num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
+                        readGeneral(num);
+                    };
                     break;
                 case POST:
-                    msg = textIO.newStringInputReader().read("Type the announcement message");
-                    System.out.println("Type the announcements's ids you want to make reference to separated by commas");
-                    list = textIO.newIntInputReader().withMinVal(0).readList();
-                    post(pub, msg, list);
+                    method = () -> {
+                        String msg = textIO.newStringInputReader().read("Type the announcement message");
+                        System.out.println("Type the announcements's ids you want to make reference to separated by commas");
+                        List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
+                        post(pub, msg, list);
+                    };
                     break;
                 case POST_GENERAL:
-                    msg = textIO.newStringInputReader().read("Type the announcement message");
-                    System.out.println("Type the announcements's ids you want to make reference to separated by commas");
-                    list = textIO.newIntInputReader().withMinVal(0).readList();
-                    postGeneral(pub, msg, list);
+                    method = () -> {
+                        String msg = textIO.newStringInputReader().read("Type the announcement message");
+                        System.out.println("Type the announcements's ids you want to make reference to separated by commas");
+                        List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
+                        postGeneral(pub, msg, list);
+                    };
                     break;
                 case EXIT:
-                    end = true;
-                    break;
+                    return;
+            }
+            if(initCommunication()) {
+                method.run();
             }
         }
+    }
+
+    private boolean initCommunication() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException, IOException {
+        // generate our nonce
+        clientNonce = MyCrypto.getRandomNonce();
+        // send the initial package
+        JSONObject req = new JSONObject();
+        req.put(Parameters.client_nonce.name(), clientNonce);
+        req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(pub));
+        req.put(Parameters.signature.name(), MyCrypto.digestAndSignToB64(req.toString().getBytes(), priv));
+        out.write(req.toString());
+        // wait for answer
+        JSONObject resp = new JSONObject(in.readLine()); // todo wait max seconds
+        System.out.println("Server response:");
+        System.out.println(resp.toString(2));
+        if (verifySignature(resp)) {
+            serverNonce = resp.getString(Parameters.server_nonce.name());
+            serverNonce = resp.getString(Parameters.server_nonce.name());
+            return true;
+        } else {
+            System.out.println("Servers signature or nonce does not match.");
+            return false;
+        }
+    }
+
+    private boolean verifySignature(JSONObject resp) throws IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+        if (resp.length() == 0) return false;
+        byte[] sig = MyCrypto.decodeB64(resp.getString(Parameters.signature.name()));
+        resp.remove(Parameters.signature.name());
+        // We verify that the message was not altered
+        if (!MyCrypto.verifySignature(sig, resp.toString().getBytes(), serverPublicKey)) return false;
+        // If nonces are set then we check their validity
+        String respClientNonce = resp.getString(Parameters.client_nonce.name());
+        String respServerNonce = resp.getString(Parameters.server_nonce.name());
+        // No need to check for null or length as equals does that
+        return clientNonce.equals(respClientNonce) && serverNonce.equals(respServerNonce);
     }
 
     @Override

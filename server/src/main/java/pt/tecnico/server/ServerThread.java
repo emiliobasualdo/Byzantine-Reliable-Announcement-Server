@@ -22,7 +22,7 @@ import java.util.List;
 
 public class ServerThread implements Runnable {
 
-    private Twitter twitter;
+    private ServerInt twitter;
     private PrivateKey privateKey;
 
     private Socket clientSocket;
@@ -48,7 +48,7 @@ public class ServerThread implements Runnable {
             int number;
             PublicKey publicKey;
             String msg;
-            List<Announcement> ann;
+            List<Integer> ann;
             switch (Action.valueOf(action)) {
                 case REGISTER:
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.board_public_key.name()));
@@ -66,13 +66,13 @@ public class ServerThread implements Runnable {
                 case POST:
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
                     msg = joMap.getString(Parameters.message.name());
-                    ann = (List<Announcement>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
+                    ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     twitter.post(publicKey, msg, ann);
                     break;
                 case POSTGENERAL:
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
                     msg = joMap.getString(Parameters.message.name());
-                    ann = (List<Announcement>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
+                    ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     twitter.postGeneral(publicKey, msg, ann);
                     break;
                 default:
