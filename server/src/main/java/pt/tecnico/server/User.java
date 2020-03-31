@@ -26,7 +26,7 @@ public class User implements Serializable {
     }
 
     public void post(String message, List<Announcement> announcements) {
-        board.post(new Announcement(message, announcements));
+        board.post(new Announcement(pb, message, announcements));
     }
 
     public List<Announcement> read(int number) {
