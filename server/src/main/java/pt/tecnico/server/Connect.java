@@ -3,9 +3,9 @@ package pt.tecnico.server;
 import pt.tecnico.model.Announcement;
 import pt.tecnico.model.MyCrypto;
 
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.sql.*;
-import java.util.List;
 
 /**
  * Connect class to bind the DPAS to a local or remote DBMS
@@ -17,11 +17,28 @@ public class Connect {
     /**
      * Constructor creating the database, tables and adding the general board if needed
      *
-     * @param generalBoard
+     * @param twitter Twitter calling object, to populate fields on db connection
      */
-    public Connect(Board generalBoard) {
-        createNewTables();
-        //insertBoard(generalBoard.getPublicKey()); //TODO: uncomment after the general board keypair is generated
+    public Connect(Twitter twitter) {
+        try (Connection conn = this.connect();
+             ResultSet tableBoards = conn.getMetaData()
+                     .getTables(null, null, "boards", null);
+             ResultSet tableAnnouncements = conn.getMetaData()
+                     .getTables(null, null, "announcements", null);
+             ResultSet tableRelAnnouncementsReferring = conn.getMetaData()
+                     .getTables(null, null, "rel_announcements_referring", null)) {
+            if (tableBoards.next() && tableAnnouncements.next() && tableRelAnnouncementsReferring.next()) {
+                // Tables exist
+                // TODO: add db loading logic
+            } else {
+                // Tables do not exist
+                createNewTables();
+                Board generalBoard = Board.genGeneralBoard();
+                insertBoard(generalBoard);
+            }
+        } catch (SQLException | NoSuchAlgorithmException e) {
+            System.out.println(e.getMessage());
+        }
     }
 
     /**
@@ -47,15 +64,15 @@ public class Connect {
         // SQL statement for creating the boards table
         String sql_boards = "CREATE TABLE IF NOT EXISTS boards (\n"
                 + "    id integer PRIMARY KEY AUTOINCREMENT,\n"
-                + "    public_key varchar UNIQUE NOT NULL"
+                + "    public_key varchar(392) UNIQUE NOT NULL" // Board Base64 encoded public key
                 + ");";
 
         // SQL statement for creating the announcements table
         String sql_announcements = "CREATE TABLE IF NOT EXISTS announcements (\n"
                 + "    id integer PRIMARY KEY AUTOINCREMENT,\n"
                 + "    board_id integer NOT NULL,\n"
-                + "    public_key varchar NOT NULL,\n"
-                + "    message varchar(255) NOT NULL,\n"
+                + "    public_key varchar(392) NOT NULL,\n" // Client Base64 encoded public key
+                + "    message varchar(255) NOT NULL,\n" // Content of the announcement, max 255 chars
                 + "    FOREIGN KEY (board_id) REFERENCES boards(id)\n"
                 + ");";
 
@@ -80,103 +97,66 @@ public class Connect {
     }
 
     /**
-     * Find the board id corresponding to the specified public key
-     *
-     * @param public_key
-     * @return board id corresponding to the key
-     */
-    public Integer findIdByKey(PublicKey public_key) {
-        Integer id = null;
-        String sql = "SELECT id, public_key FROM boards WHERE public_key = ?";
-
-        try (Connection conn = this.connect();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, MyCrypto.publicKeyToB64String(public_key));
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                id = rs.getInt("id");
-            }
-            rs.close();
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
-        }
-
-        return id;
-    }
-
-    /**
-     * Find the announcements corresponding to the specified public key (board)
-     *
-     * @param public_key
-     * @return announcement id correspondig to the key
-     * @throws IllegalArgumentException
-     */
-    public Integer findAnnouncementsByKey(PublicKey public_key) throws IllegalArgumentException { //TODO: update according to new database scheme
-        Integer boardId = findIdByKey(public_key);
-        if (boardId == null) throw new IllegalArgumentException("No such key");
-
-        Integer id = null;
-        String sql = "SELECT id, public_key FROM boards WHERE public_key = ?";
-
-        try (Connection conn = this.connect();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, MyCrypto.publicKeyToB64String(public_key));
-            ResultSet rs = pstmt.executeQuery();
-            while (rs.next()) {
-                id = rs.getInt("id");
-            }
-            rs.close();
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
-        }
-
-        return id;
-    }
-
-    /**
      * Insert a new row into the boards table
      *
-     * @param board_key
+     * @param board Board to be inserted
      * @throws IllegalArgumentException
+     * @return true if the insert was successful, false otherwise
      */
-    public void insertBoard(PublicKey board_key) throws IllegalArgumentException {
-        Integer exists = findIdByKey(board_key);
-        if (exists != null) throw new IllegalArgumentException("Public key already registered");
-
+    public Boolean insertBoard(Board board) throws IllegalArgumentException {
         String sql = "INSERT INTO boards(public_key) VALUES(?)";
+        Boolean ret = false;
 
         try (Connection conn = this.connect();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, MyCrypto.publicKeyToB64String(board_key));
+            pstmt.setString(1, MyCrypto.publicKeyToB64String(board.getPublicKey()));
             pstmt.executeUpdate();
+
+            ResultSet rs = pstmt.getGeneratedKeys();
+            if (rs.next()) {
+                board.setId(rs.getInt(1));
+                ret = true;
+            } else {
+                throw new NullPointerException("Cannot retrieve last inserted announcement");
+            }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
+
+        return ret;
     }
 
     /**
      * Insert a new row into the announcements table
      *
-     * @param board_key
-     * @param client_key
-     * @param message
-     * @param announcements
+     * @param board
+     * @param announcement
      * @return true if the insert was successful, false otherwise
      * @throws IllegalArgumentException
      */
-    public boolean insertAnnouncement(PublicKey board_key, PublicKey client_key, String message, List<Announcement> announcements) throws IllegalArgumentException { //TODO: add referring announcements
-        Integer boardId = findIdByKey(board_key);
-        if (boardId == null) throw new IllegalArgumentException("No such key");
-
+    public boolean insertAnnouncement(Board board, Announcement announcement) throws IllegalArgumentException { //TODO: add referring announcements
         boolean ret = false;
         String sql = "INSERT INTO announcements(board_id, public_key, message) VALUES(?,?,?)";
+        String sql_rel = "INSERT INTO rel_announcements_referring(announcement_id, announcement_referring_id) VALUES(?,?)";
 
         try (Connection conn = this.connect();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, boardId);
-            pstmt.setString(2, MyCrypto.publicKeyToB64String(client_key));
-            pstmt.setString(3, message);
-            ret = pstmt.executeUpdate() == 1; //if the row count for the executed statement is 1
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             PreparedStatement pstmt_rel = conn.prepareStatement(sql_rel)) {
+            pstmt.setInt(1, board.getId());
+            pstmt.setString(2, MyCrypto.publicKeyToB64String(announcement.getOwner()));
+            pstmt.setString(3, announcement.getMessage());
+            ret = pstmt.executeUpdate() == 1; //if the row count for the executed statement is 1, it succeeded
+
+            ResultSet rs = pstmt.getGeneratedKeys();
+            if (rs.next()) {
+                pstmt_rel.setInt(1, rs.getInt(1));
+                for (Announcement relAnnouncement : announcement.getAnnouncements()) {
+                    pstmt_rel.setInt(2, relAnnouncement.getId());
+                    ret = pstmt_rel.executeUpdate() == 1;
+                }
+            } else {
+                throw new NullPointerException("Cannot retrieve last inserted announcement");
+            }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }

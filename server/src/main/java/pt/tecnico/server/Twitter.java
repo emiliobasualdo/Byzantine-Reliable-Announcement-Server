@@ -1,10 +1,8 @@
 package pt.tecnico.server;
 
 import pt.tecnico.model.Announcement;
-import pt.tecnico.model.MyCrypto;
 import pt.tecnico.model.ServerInt;
 
-import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,15 +14,12 @@ import java.util.Map;
  * Twitter base class to abstract the DBMS layer
  */
 public class Twitter implements ServerInt {
-    private Map<PublicKey, User> publicKeys = new HashMap<>(); //TODO: populate the hashmap with db values
-    private Board generalBoard;
+    private Map<PublicKey, User> publicKeys = new HashMap<>();
+    private List<Board> boards = new ArrayList<>();
     private Connect conn;
 
-    public Twitter() throws NoSuchAlgorithmException {
-        PublicKey board_key = MyCrypto.generateKeyPair().getPublic(); //TODO: generate keypair for the general board
-        this.generalBoard = new Board(board_key);
-
-        conn = new Connect(generalBoard); //init the database with the general board
+    public Twitter() {
+        conn = new Connect(this); //init the database connection
     }
 
     /**
@@ -41,18 +36,14 @@ public class Twitter implements ServerInt {
     }
 
     /**
-     * Check if an announcement posting request has a correct message length and a refers correct announcement count
-     * specified
+     * Check if a public key is already registered as a board
      *
-     * @param message
-     * @param announcements
-     * @throws IllegalArgumentException
+     * @param key PublicKey corresponding to the board
+     * @return the Board corresponding to the key if found, null otherwise
      */
-    private void postCheck(String message, List<Announcement> announcements) throws IllegalArgumentException {
-        if (message == null || message.length() == 0 || message.length() == 255)
-            throw new IllegalArgumentException("Message length must be between 0 and 255 characters");
-        if (announcements != null && announcements.size() > 1000)
-            throw new IllegalArgumentException("Announcements list can not have more than 1000 items");
+    private Board boardCheck(PublicKey key) {
+        Board b = boards.stream().filter(board -> key == board.getPublicKey()).findAny().orElse(null); // invoke a stream on the list and return the first element that matches the filter predicate if any
+        return b;
     }
 
     /**
@@ -64,25 +55,43 @@ public class Twitter implements ServerInt {
         if (number < 0) throw new IllegalArgumentException("Number must be positive");
     }
 
-
+    /**
+     * Register a user by adding its own board
+     *
+     * @param publicKey
+     * @throws IllegalArgumentException
+     */
     @Override
     public void register(PublicKey publicKey) throws IllegalArgumentException {
-        publicKeys.put(publicKey, new User(publicKey, "User1")); //TODO: choose the username
-        conn.insertBoard(publicKey);
+        //publicKeys.put(publicKey, new User(publicKey, "User1")); // TODO: choose the username
+        Board b = new Board(publicKey);
+        boards.add(b);
+        conn.insertBoard(b);
     }
 
+    /**
+     * Post an announcement in the specified board, if it exists
+     *
+     * @param key
+     * @param message
+     * @param announcements
+     * @return
+     * @throws IllegalArgumentException
+     */
     @Override
     public boolean post(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
-        publicKeyCheck(key);
-        postCheck(message, announcements);
-        return conn.insertAnnouncement(key, key, message, announcements);
+        Board b = boardCheck(key);
+        if (b == null) throw new IllegalArgumentException("No such board registered with this key");
+        Announcement announcement = new Announcement(key, message, announcements);
+        return conn.insertAnnouncement(b, announcement);
     }
 
     @Override
     public boolean postGeneral(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
-        publicKeyCheck(key);
-        postCheck(message, announcements);
-        return conn.insertAnnouncement(generalBoard.getPublicKey(), key, message, announcements);
+        Board b = boards.get(0);
+        if (b == null) throw new IllegalArgumentException("No general board registered"); // should never happen, in that case a keypair should have been generated earlier
+        Announcement announcement = new Announcement(key, message, announcements);
+        return conn.insertAnnouncement(b, announcement); // the general board is the first one
     }
 
     @Override
