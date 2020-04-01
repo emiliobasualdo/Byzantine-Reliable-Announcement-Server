@@ -31,6 +31,8 @@ import static pt.tecnico.model.MyCrypto.SERVER_ALIAS;
 // https://dzone.com/articles/simple-http-server-in-java
 
 public class ServerHttp implements HttpHandler {
+    private static final String HTTP_HOST = "localhost";
+    private static final int HTTP_PORT = 8001;
     private Twitter twitter;
     private PrivateKey privateKey;
 
@@ -56,16 +58,17 @@ public class ServerHttp implements HttpHandler {
             String action = params.getString(Parameters.action.name());
             if (action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
             int number;
-            PublicKey publicKey;
+            String publicKey;
+            String signature;
             String msg;
             List<Announcement> ann;
             switch (Action.valueOf(action)) {
                 case REGISTER:
-                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.board_public_key.name()));
+                    publicKey = params.getString(Parameters.board_public_key.name());
                     twitter.register(publicKey);
                     break;
                 case READ:
-                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.board_public_key.name()));
+                    publicKey = params.getString(Parameters.board_public_key.name());
                     number = params.getInt(Parameters.number.name());
                     twitter.read(publicKey, number);
                     break;
@@ -74,16 +77,18 @@ public class ServerHttp implements HttpHandler {
                     twitter.readGeneral(number);
                     break;
                 case POST:
-                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.client_public_key.name()));
+                    publicKey = params.getString(Parameters.board_public_key.name());
+                    signature = params.getString(Parameters.signature.name());
                     msg = params.getString(Parameters.message.name());
                     ann = (List<Announcement>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
-                    twitter.post(publicKey, msg, ann);
+                    twitter.post(publicKey, signature, msg, ann);
                     break;
                 case POSTGENERAL:
-                    publicKey = MyCrypto.publicKeyFromB64String(params.getString(Parameters.client_public_key.name()));
+                    publicKey = params.getString(Parameters.board_public_key.name());
+                    signature = params.getString(Parameters.signature.name());
                     msg = params.getString(Parameters.message.name());
                     ann = (List<Announcement>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
-                    twitter.postGeneral(publicKey, msg, ann);
+                    twitter.postGeneral(publicKey, signature, msg, ann);
                     break;
                 default:
                     throw new IllegalStateException("Unexpected value: " + Action.valueOf(action));
@@ -148,12 +153,12 @@ public class ServerHttp implements HttpHandler {
             PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], SERVER_ALIAS);
             // We start the server
             Twitter twitter = new Twitter();
-            HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 8001), 0);
+            HttpServer server = HttpServer.create(new InetSocketAddress(HTTP_HOST, HTTP_PORT), 0);
             server.createContext("/twitter", new ServerHttp(twitter, privateKey));
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
             server.setExecutor(threadPoolExecutor);
             server.start();
-            System.out.println("Server started on port 8001");
+            System.out.println("Server started on port " + HTTP_PORT);
         } catch (Exception e) {
             System.err.println("Server exception: " + e.toString());
             e.printStackTrace();

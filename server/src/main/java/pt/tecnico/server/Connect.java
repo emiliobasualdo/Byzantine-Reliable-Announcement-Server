@@ -1,25 +1,22 @@
 package pt.tecnico.server;
 
 import pt.tecnico.model.Announcement;
-import pt.tecnico.model.MyCrypto;
 
 import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Connect class to bind the DPAS to a local or remote DBMS
  */
 public class Connect {
-    private static final String DB_DRIVER = "jdbc:sqlite";
-    private static final String DB_FILENAME = "dpas.db";
+    private static final String DB_DRIVER = "jdbc:sqlite:dpas.db";
 
     /**
      * Constructor creating the database, tables and adding the general board if needed
-     *
-     * @param twitter Twitter calling object, to populate fields on db connection
      */
-    public Connect(Twitter twitter) {
+    public Connect(List<Board> boards) {
         try (Connection conn = this.connect();
              ResultSet tableBoards = conn.getMetaData()
                      .getTables(null, null, "boards", null);
@@ -29,7 +26,7 @@ public class Connect {
                      .getTables(null, null, "rel_announcements_referring", null)) {
             if (tableBoards.next() && tableAnnouncements.next() && tableRelAnnouncementsReferring.next()) {
                 // Tables exist
-                // TODO: add db loading logic
+                populateBoards(boards);
             } else {
                 // Tables do not exist
                 createNewTables();
@@ -50,7 +47,7 @@ public class Connect {
         Connection conn = null;
         try {
             // create a connection to the database
-            conn = DriverManager.getConnection(DB_DRIVER + ":" + DB_FILENAME);
+            conn = DriverManager.getConnection(DB_DRIVER);
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
@@ -72,6 +69,7 @@ public class Connect {
                 + "    id integer PRIMARY KEY AUTOINCREMENT,\n"
                 + "    board_id integer NOT NULL,\n"
                 + "    public_key varchar(392) NOT NULL,\n" // Client Base64 encoded public key
+                + "    signature varchar(344) NOT NULL,\n" // Client Base64 encoded signature
                 + "    message varchar(255) NOT NULL,\n" // Content of the announcement, max 255 chars
                 + "    FOREIGN KEY (board_id) REFERENCES boards(id)\n"
                 + ");";
@@ -100,27 +98,26 @@ public class Connect {
      * Insert a new row into the boards table
      *
      * @param board Board to be inserted
-     * @throws IllegalArgumentException
      * @return true if the insert was successful, false otherwise
      */
-    public Boolean insertBoard(Board board) throws IllegalArgumentException {
+    public boolean insertBoard(Board board) {
         String sql = "INSERT INTO boards(public_key) VALUES(?)";
-        Boolean ret = false;
+        boolean ret;
 
         try (Connection conn = this.connect();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, MyCrypto.publicKeyToB64String(board.getPublicKey()));
-            pstmt.executeUpdate();
+            pstmt.setString(1, board.getPublicKey());
+            ret = (pstmt.executeUpdate() == 1); //if the row count for the executed statement is 1, it succeeded
 
             ResultSet rs = pstmt.getGeneratedKeys();
-            if (rs.next()) {
+            if (ret && rs.next()) {
                 board.setId(rs.getInt(1));
-                ret = true;
             } else {
-                throw new NullPointerException("Cannot retrieve last inserted announcement");
+                throw new NullPointerException("Cannot retrieve last inserted board");
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
+            ret = false;
         }
 
         return ret;
@@ -132,56 +129,90 @@ public class Connect {
      * @param board
      * @param announcement
      * @return true if the insert was successful, false otherwise
-     * @throws IllegalArgumentException
      */
-    public boolean insertAnnouncement(Board board, Announcement announcement) throws IllegalArgumentException { //TODO: add referring announcements
-        boolean ret = false;
-        String sql = "INSERT INTO announcements(board_id, public_key, message) VALUES(?,?,?)";
+    public boolean insertAnnouncement(Board board, Announcement announcement) {
+        boolean ret;
+        boolean flagUpdatedRetToFalse = false;
+        String sql = "INSERT INTO announcements(board_id, public_key, signature, message) VALUES(?,?,?,?)";
         String sql_rel = "INSERT INTO rel_announcements_referring(announcement_id, announcement_referring_id) VALUES(?,?)";
 
         try (Connection conn = this.connect();
              PreparedStatement pstmt = conn.prepareStatement(sql);
              PreparedStatement pstmt_rel = conn.prepareStatement(sql_rel)) {
             pstmt.setInt(1, board.getId());
-            pstmt.setString(2, MyCrypto.publicKeyToB64String(announcement.getOwner()));
-            pstmt.setString(3, announcement.getMessage());
-            ret = pstmt.executeUpdate() == 1; //if the row count for the executed statement is 1, it succeeded
+            pstmt.setString(2, announcement.getOwner());
+            pstmt.setString(3, announcement.getSignature());
+            pstmt.setString(4, announcement.getMessage());
+            ret = (pstmt.executeUpdate() == 1); //if the row count for the executed statement is 1, it succeeded
 
             ResultSet rs = pstmt.getGeneratedKeys();
-            if (rs.next()) {
+            if (ret && rs.next()) {
+                announcement.setId(rs.getInt(1));
                 pstmt_rel.setInt(1, rs.getInt(1));
-                for (Announcement relAnnouncement : announcement.getAnnouncements()) {
-                    pstmt_rel.setInt(2, relAnnouncement.getId());
-                    ret = pstmt_rel.executeUpdate() == 1;
+                for (Integer relAnnouncement : announcement.getAnnouncements()) {
+                    pstmt_rel.setInt(2, relAnnouncement);
+                    ret = (!flagUpdatedRetToFalse && (pstmt_rel.executeUpdate() == 1)); // (flagUpdatedRetToFalse ? false : (pstmt_rel.executeUpdate() == 1))
+                    if (!flagUpdatedRetToFalse && !ret) flagUpdatedRetToFalse = true;
                 }
             } else {
                 throw new NullPointerException("Cannot retrieve last inserted announcement");
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
+            ret = false;
         }
         return ret;
     }
 
-    /**
-     * Select all rows in the announcements table
-     */
-    public void selectAll() {
-        String sql = "SELECT id, board_id, public_key, message FROM announcements";
+    private boolean populateBoards(List<Board> boards) {
+        boolean ret = false;
+        List<Announcement> announcements;
+        String sql_boards = "SELECT id, public_key FROM boards";
+        String sql_announcement = "SELECT id, board_id, public_key, signature, message FROM announcements WHERE board_id = ?";
+        String sql_rel = "SELECT announcement_id, announcement_referring_id FROM rel_announcements_referring WHERE announcement_id = ?";
 
         try (Connection conn = this.connect();
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             ResultSet rs_boards = stmt.executeQuery(sql_boards);
+             PreparedStatement pstmt_announcement = conn.prepareStatement(sql_announcement);
+             PreparedStatement pstmt_rel = conn.prepareStatement(sql_rel)) {
+            ResultSet rs_announcement;
+            ResultSet rs_rel;
 
-            // loop through the result set
-            while (rs.next()) {
-                System.out.println(rs.getInt("id") + "\t" +
-                        rs.getInt("board_id") + "\t" +
-                        rs.getString("public_key") + "\t" +
-                        rs.getString("message"));
+            // loop through the result set of boards
+            while (rs_boards.next()) {
+                announcements = new ArrayList<>();
+                pstmt_announcement.setInt(1, rs_boards.getInt("id"));
+                rs_announcement = pstmt_announcement.executeQuery();
+                List<Integer> annoucements_rel;
+
+                // loop through the result set of announcements
+                while (rs_announcement.next()) {
+                    annoucements_rel = new ArrayList<>();
+                    pstmt_rel.setInt(1, rs_announcement.getInt("id"));
+                    rs_rel = pstmt_rel.executeQuery();
+
+                    // loop through the result set of announcements_rel
+                    while (rs_rel.next()) {
+                        annoucements_rel.add(rs_rel.getInt("announcement_referring_id"));
+                    }
+                    rs_rel.close();
+
+                    announcements.add(new Announcement(rs_announcement.getString("public_key"),
+                            rs_announcement.getString("signature"),
+                            rs_announcement.getString("message"),
+                            annoucements_rel,
+                            rs_announcement.getInt("id")));
+                }
+
+                rs_announcement.close();
+                boards.add(new Board(rs_boards.getString("public_key"), rs_boards.getInt("id"), announcements));
+                ret = true;
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
+            ret = false;
         }
+        return ret;
     }
 }
