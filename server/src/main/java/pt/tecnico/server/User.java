@@ -1,7 +1,6 @@
 package pt.tecnico.server;
 
 import pt.tecnico.model.Announcement;
-import pt.tecnico.model.MyCrypto;
 
 import java.io.Serializable;
 import java.security.NoSuchAlgorithmException;
@@ -27,8 +26,8 @@ public class User implements Serializable {
         return pb;
     }
 
-    public void post(String message, String signature, List<Announcement> announcements) {
-        board.post(new Announcement(pb, signature, message, Announcement.announcementsListToIntegers(announcements)));
+    public void post(String message, String signature, List<Integer> announcements) {
+        board.post(new Announcement(pb, signature, message, announcements));
     }
 
     public List<Announcement> read(int number) {

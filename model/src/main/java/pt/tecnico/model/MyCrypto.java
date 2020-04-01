@@ -34,7 +34,6 @@ public class MyCrypto {
     }
 
     public static byte[] digest(byte[] messageBytes) throws NoSuchAlgorithmException {
-        //Mac.getInstance("HmacSHA512") // todo check if MessageDigest or MAC or HMAC should be used
         MessageDigest md = MessageDigest.getInstance(DIGEST_ALG);
         return md.digest(messageBytes);
     }
@@ -75,22 +74,13 @@ public class MyCrypto {
         return UUID.randomUUID().toString();
     }
 
-    public static byte[] XOR(byte[] a, byte[] b) {
-        byte[] resp = new byte[a.length];
-
-        for (int i = 0; i < a.length; i++) {
-            resp[i] = (byte)((a[i] ^ b[i]) & 0x000000ff);
-        }
-        return resp;
-    }
-
-    public static String publicKeyToB64String(PublicKey key){
-        if (key  == null) throw new IllegalArgumentException("key is null");
+    public static String publicKeyToB64String(PublicKey key) {
+        if (key == null) throw new IllegalArgumentException("key is null");
         return Base64.getEncoder().encodeToString(key.getEncoded());
     }
 
     public static PublicKey publicKeyFromB64String(String key) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        if (key  == null) return null;
+        if (key == null) return null;
         byte[] byteKey = Base64.getDecoder().decode(key);
         X509EncodedKeySpec X509publicKey = new X509EncodedKeySpec(byteKey);
         KeyFactory kf = KeyFactory.getInstance(MyCrypto.KEY_ALG);

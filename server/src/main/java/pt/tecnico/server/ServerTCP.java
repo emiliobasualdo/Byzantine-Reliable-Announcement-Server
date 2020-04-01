@@ -30,7 +30,7 @@ public class ServerTCP {
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
         while (true) {
             Socket clientSocket = serverSocket.accept();
-            clientSocket.setSoTimeout(30);
+            clientSocket.setSoTimeout(30*1000);
             System.out.println("Established connection with client-> "+ clientSocket.getInetAddress().toString() +":"+clientSocket.getPort());
             System.out.println("Creating new thread");
             BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));

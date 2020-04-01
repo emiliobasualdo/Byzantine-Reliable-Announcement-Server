@@ -12,6 +12,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -73,8 +74,7 @@ public class ServerThread implements Runnable {
                     signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    list = (List<Announcement>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.post(publicKey, signature, msg, list );
+                    twitter.post(publicKey, signature, msg, ann );
                     resp.put(Parameters.data.name(), "Posted correctly!");
                     break;
                 case POSTGENERAL:
@@ -82,8 +82,7 @@ public class ServerThread implements Runnable {
                     signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    list = (List<Announcement>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.postGeneral(publicKey, signature, msg, list);
+                    twitter.postGeneral(publicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted correctly!");
                     break;
                 default:
@@ -160,6 +159,8 @@ public class ServerThread implements Runnable {
         try {
             receive(in.readLine());
             receive(in.readLine());
+        } catch (SocketTimeoutException e) {
+            System.err.println("Timeout reached");
         } catch (IOException | IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
             throw new InternalError(e);
         }

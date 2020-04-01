@@ -20,13 +20,25 @@ cd local/path/to/Dependable-Public-Announcement-Server
 mvn clean install
 ```
 ### 3. Start the server
-Now you have to pass the path where the server_keystore was saved, the key alias and the password
+Pass the path where the server_keystore was saved, the key alias, the password and the port where to start
 ```
-java -jar server/target/server-1.0-jar-with-dependencies.jar  /Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/server_keystore.p12  serverKeyPair pass1234
+java -jar server/target/server-1.0-jar-with-dependencies.jar /Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/server_keystore.p12  serverKeyPair pass1234 8000
 ```
 ### 4. Start the client
+Pass the path where the server_keystore was saved, the key alias, the password, the server port
 ```
-java -jar client/target/client-1.0-jar-with-dependencies.jar  /Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/server_keystore.p12  serverKeyPair pass1234
+java -jar client/target/client-1.0-jar-with-dependencies.jar /Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/server_keystore.p12  serverKeyPair pass1234
+```
+
+# Run a hacker
+To simulate a hacker you can start a proxy server that can read, drop, edit and duplicate the packages sent between server and client  
+1. Start the server at port X
+2. Start the hacker at port Y
+3. Start the client and tell him the server is at Y
+### Start the hacker
+Pass the port where the hacker will start and the port where the server is
+```
+java -jar hacker/target/hacker-1.0-jar-with-dependencies.jar 8001 8000
 ```
 
 # Run maven tests

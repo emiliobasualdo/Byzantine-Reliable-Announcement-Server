@@ -2,7 +2,6 @@ package pt.tecnico.server;
 
 import pt.tecnico.model.Announcement;
 
-import java.security.NoSuchAlgorithmException;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,9 +13,9 @@ public class Connect {
     private static final String DB_DRIVER = "jdbc:sqlite:dpas.db";
 
     /**
-     * Constructor creating the database, tables and adding the general board if needed
+     * Constructor creating the database, tables, adding the general board if needed, or populating the boards
      */
-    public Connect(List<Board> boards) {
+    public Connect(List<Board> boards, List<Integer> announcements) {
         try (Connection conn = this.connect();
              ResultSet tableBoards = conn.getMetaData()
                      .getTables(null, null, "boards", null);
@@ -26,14 +25,14 @@ public class Connect {
                      .getTables(null, null, "rel_announcements_referring", null)) {
             if (tableBoards.next() && tableAnnouncements.next() && tableRelAnnouncementsReferring.next()) {
                 // Tables exist
-                populateBoards(boards);
+                populateBoards(boards, announcements);
             } else {
                 // Tables do not exist
                 createNewTables();
                 Board generalBoard = Board.genGeneralBoard();
                 insertBoard(generalBoard);
             }
-        } catch (SQLException | NoSuchAlgorithmException e) {
+        } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
     }
@@ -61,16 +60,16 @@ public class Connect {
         // SQL statement for creating the boards table
         String sql_boards = "CREATE TABLE IF NOT EXISTS boards (\n"
                 + "    id integer PRIMARY KEY AUTOINCREMENT,\n"
-                + "    public_key varchar(392) UNIQUE NOT NULL" // Board Base64 encoded public key
+                + "    public_key varchar(392) UNIQUE NOT NULL"         // Base64 encoded board public key
                 + ");";
 
         // SQL statement for creating the announcements table
         String sql_announcements = "CREATE TABLE IF NOT EXISTS announcements (\n"
                 + "    id integer PRIMARY KEY AUTOINCREMENT,\n"
                 + "    board_id integer NOT NULL,\n"
-                + "    public_key varchar(392) NOT NULL,\n" // Client Base64 encoded public key
-                + "    signature varchar(344) NOT NULL,\n" // Client Base64 encoded signature
-                + "    message varchar(255) NOT NULL,\n" // Content of the announcement, max 255 chars
+                + "    public_key varchar(392) NOT NULL,\n"             // Base64 encoded client public key
+                + "    signature varchar(344) NOT NULL,\n"              // Base64 encoded announcement signature
+                + "    message varchar(255) NOT NULL,\n"                // Content of the announcement, max 255 chars
                 + "    FOREIGN KEY (board_id) REFERENCES boards(id)\n"
                 + ");";
 
@@ -126,8 +125,8 @@ public class Connect {
     /**
      * Insert a new row into the announcements table
      *
-     * @param board
-     * @param announcement
+     * @param board        Board to post to
+     * @param announcement Announcement to be inserted/posted
      * @return true if the insert was successful, false otherwise
      */
     public boolean insertAnnouncement(Board board, Announcement announcement) {
@@ -164,7 +163,15 @@ public class Connect {
         return ret;
     }
 
-    private boolean populateBoards(List<Board> boards) {
+    /**
+     * Populate the model from the database
+     *
+     * @param boards          List of Board that will be populated from the database
+     * @param announcementIds List of Announcement ids that will be populated from the database
+     * @return true if everything was successful, false otherwise
+     */
+    @SuppressWarnings("UnusedReturnValue")
+    private boolean populateBoards(List<Board> boards, List<Integer> announcementIds) {
         boolean ret = false;
         List<Announcement> announcements;
         String sql_boards = "SELECT id, public_key FROM boards";
@@ -203,6 +210,7 @@ public class Connect {
                             rs_announcement.getString("message"),
                             annoucements_rel,
                             rs_announcement.getInt("id")));
+                    announcementIds.add(rs_announcement.getInt("id"));
                 }
 
                 rs_announcement.close();

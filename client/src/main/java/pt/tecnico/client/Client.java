@@ -55,7 +55,7 @@ public class Client {
     private void open(int serverPort) {
         try {
             socket = new Socket("127.0.0.1", serverPort);
-            socket.setSoTimeout(30);
+            socket.setSoTimeout(30*1000);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             System.out.println("New TCP connection with the server opened at port "+socket.getLocalPort());

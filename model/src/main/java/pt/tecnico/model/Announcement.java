@@ -2,14 +2,16 @@ package pt.tecnico.model;
 
 import java.io.Serializable;
 import java.util.List;
-import java.util.stream.Collectors;
 
+/**
+ * Announcement class to gather the sender, the message, the list of announcements it refers to, its database id and its signature
+ */
 public class Announcement implements Serializable, Comparable {
-    private String owner;
-    private String message;
-    private List<Integer> announcements;
-    private Integer id = null;
-    private String signature;
+    private String owner;                   // Base64 encoded client public key
+    private String message;                 // Content of the announcement, max 255 chars
+    private List<Integer> announcements;    // List of announcements ids to refer to
+    private Integer id = null;              // Announcement id if it had been inserted in the db
+    private String signature;               // Base64 encoded announcement signature
 
     public Announcement(String user, String signature, String message, List<Integer> announcements) {
         postCheck(message, announcements);
@@ -26,17 +28,16 @@ public class Announcement implements Serializable, Comparable {
 
     @Override
     public int compareTo(Object o) {
-        Integer compareId = ((Announcement)o).getId();
-        return this.id-compareId;
+        Integer compareId = ((Announcement) o).getId();
+        return this.id - compareId;
     }
 
     /**
-     * Check if an announcement posting request has a correct message length and a refers correct announcement count
-     * specified
+     * Check if an announcement posting request has a correct message length and a refers correct announcement count specified
      *
-     * @param message
-     * @param announcements
-     * @throws IllegalArgumentException
+     * @param message       String corresponding to the announcements message to post
+     * @param announcements List of announcements ids to refer to
+     * @throws IllegalArgumentException in case the specified message and list of announcements do not respect the criteria
      */
     private void postCheck(String message, List<Integer> announcements) throws IllegalArgumentException {
         if (message == null || message.length() == 0 || message.length() == 255)
@@ -67,9 +68,5 @@ public class Announcement implements Serializable, Comparable {
 
     public String getSignature() {
         return signature;
-    }
-
-    public static List<Integer> announcementsListToIntegers(List<Announcement> announcements) {
-        return announcements.stream().map(Announcement::getId).collect(Collectors.toList());
     }
 }
