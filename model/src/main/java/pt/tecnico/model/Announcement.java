@@ -1,22 +1,33 @@
 package pt.tecnico.model;
 
 import java.io.Serializable;
-import java.security.PublicKey;
 import java.util.List;
+import java.util.stream.Collectors;
 
-public class Announcement implements Serializable {
-    private PublicKey owner;
+public class Announcement implements Serializable, Comparable {
+    private String owner;
     private String message;
     private List<Integer> announcements;
     private Integer id = null;
     private String signature;
 
-    public Announcement(PublicKey user, String message, List<Integer> announcements, String signature) {
+    public Announcement(String user, String signature, String message, List<Integer> announcements) {
         postCheck(message, announcements);
         this.message = message;
         this.announcements = announcements;
         this.owner = user;
         this.signature = signature;
+    }
+
+    public Announcement(String user, String signature, String message, List<Integer> announcements, Integer id) {
+        this(user, signature, message, announcements);
+        this.setId(id);
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        Integer compareId = ((Announcement)o).getId();
+        return this.id-compareId;
     }
 
     /**
@@ -34,7 +45,7 @@ public class Announcement implements Serializable {
             throw new IllegalArgumentException("Announcements list can not have more than 1000 items");
     }
 
-    public PublicKey getOwner() {
+    public String getOwner() {
         return owner;
     }
 
@@ -52,5 +63,13 @@ public class Announcement implements Serializable {
 
     public void setId(Integer id) {
         this.id = id;
+    }
+
+    public String getSignature() {
+        return signature;
+    }
+
+    public static List<Integer> announcementsListToIntegers(List<Announcement> announcements) {
+        return announcements.stream().map(Announcement::getId).collect(Collectors.toList());
     }
 }

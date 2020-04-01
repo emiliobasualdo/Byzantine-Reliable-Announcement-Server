@@ -48,18 +48,17 @@ public class ServerThread implements Runnable {
             String action = joMap.getString(Parameters.action.name());
             if (action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
             int number;
-            PublicKey publicKey;
-            String msg, signature;
+            String msg, signature, publicKey;
             List<Integer> ann;
             List<Announcement> list;
             switch (Action.valueOf(action)) {
                 case REGISTER:
-                    publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
+                    publicKey = joMap.getString(Parameters.client_public_key.name());
                     twitter.register(publicKey);
                     resp.put(Parameters.data.name(), "Correctly registered");
                     break;
                 case READ:
-                    publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.board_public_key.name()));
+                    publicKey = joMap.getString(Parameters.board_public_key.name());
                     number = joMap.getInt(Parameters.number.name());
                     list = twitter.read(publicKey, number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
@@ -70,19 +69,21 @@ public class ServerThread implements Runnable {
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case POST:
-                    publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
-                    signature = checkPostSignature(joMap, publicKey);
+                    publicKey = joMap.getString(Parameters.client_public_key.name());
+                    signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.post(publicKey, msg, ann, signature);
+                    list = (List<Announcement>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
+                    twitter.post(publicKey, signature, msg, list );
                     resp.put(Parameters.data.name(), "Posted correctly!");
                     break;
                 case POSTGENERAL:
-                    publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
-                    signature = checkPostSignature(joMap, publicKey);
+                    publicKey = joMap.getString(Parameters.client_public_key.name());
+                    signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.postGeneral(publicKey, msg, ann, signature);
+                    list = (List<Announcement>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
+                    twitter.postGeneral(publicKey, signature, msg, list);
                     resp.put(Parameters.data.name(), "Posted correctly!");
                     break;
                 default:
@@ -136,7 +137,7 @@ public class ServerThread implements Runnable {
             System.err.println(e.getMessage());
             throw new InternalError(e.getMessage());
         }
-        return jo;
+        return new JSONObject(msg);
     }
 
     private void handleResponse(JSONObject resp, boolean close) throws InternalError, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {

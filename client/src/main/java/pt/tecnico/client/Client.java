@@ -37,7 +37,7 @@ public class Client {
 
     public static void main(String[] args) {
         // We need the the path of the folder where to save the keys
-        if(args.length < 3) throw new IllegalArgumentException("Specify key-store-path, alias, password");
+        if(args.length < 4) throw new IllegalArgumentException("Specify [key-store-path] [alias] [password] [server-port]");
         try {
             // We get the client's keys and server's public key
             KeyPair kp = MyCrypto.generateKeyPair();
@@ -46,15 +46,16 @@ public class Client {
             serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
             // we connect to the server
             Client client = new Client();
-            client.start();
+            client.start(Integer.parseInt(args[3]));
         } catch (Exception e) {
             System.err.println(e.getMessage());
         }
     }
 
-    private void open() {
+    private void open(int serverPort) {
         try {
-            socket = new Socket("127.0.0.1", 8001);
+            socket = new Socket("127.0.0.1", serverPort);
+            socket.setSoTimeout(30);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             System.out.println("New TCP connection with the server opened at port "+socket.getLocalPort());
@@ -70,14 +71,14 @@ public class Client {
         socket.close();
     }
 
-    private void start() throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
+    private void start(int serverPort) throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
         textIO = TextIoFactory.getTextIO();
         System.out.println("Hello. This is the client for the for the Highly Dependable Announcement Server.");
         List<String> enumNames = Stream.of(Options.values())
                 .map(Enum::name)
                 .collect(Collectors.toList());
         while (true) {
-            open();
+            open(serverPort);
             String option = textIO.newStringInputReader()
                     .withNumberedPossibleValues(enumNames)
                     .read("What do you want to do?");
@@ -194,7 +195,7 @@ public class Client {
             System.out.println("Server's signature and nonce are correct");
             return true;
         } catch (Exception e) {
-            System.out.println(e.getMessage());
+            System.err.println(e.getMessage());
             System.err.println("Server response:");
             System.out.println(oResp.toString(2));
             return false;
@@ -243,15 +244,15 @@ public class Client {
         secondRequest(req);
     }
 
-    private JSONObject post(String message, List<Integer> announcements) throws IllegalArgumentException {
-        return genericPost(message, announcements, Action.POST);
+    private void post(String message, List<Integer> announcements) throws IllegalArgumentException {
+        genericPost(message, announcements, Action.POST);
     }
 
-    private JSONObject postGeneral(String message, List<Integer> announcements) throws IllegalArgumentException {
-        return genericPost(message, announcements, Action.POSTGENERAL);
+    private void postGeneral(String message, List<Integer> announcements) throws IllegalArgumentException {
+        genericPost(message, announcements, Action.POSTGENERAL);
     }
 
-    private JSONObject genericPost(String message, List<Integer> announcements, Action action) throws IllegalArgumentException {
+    private void genericPost(String message, List<Integer> announcements, Action action) throws IllegalArgumentException {
         JSONObject req = newBasicRequest();
         JSONObject postData = new JSONObject();
         JSONArray ann = new JSONArray(announcements);
@@ -268,7 +269,7 @@ public class Client {
         req.put(Parameters.post_signature.name(), postSig);
         // we sign and send
         digestAndSign(req);
-        return secondRequest(req);
+        secondRequest(req);
     }
 
     private void read(String key, int number) throws IllegalArgumentException {
@@ -280,8 +281,12 @@ public class Client {
         secondRequest(req);
     }
 
-    private List<Announcement> readGeneral(int number) throws IllegalArgumentException {
-        return null;
+    private void readGeneral(int number) throws IllegalArgumentException {
+        JSONObject req = newBasicRequest();
+        req.put(Parameters.action.name(), Action.READGENERAL.name());
+        req.put(Parameters.number.name(), number);
+        digestAndSign(req);
+        secondRequest(req);
     }
 
     enum Options {
