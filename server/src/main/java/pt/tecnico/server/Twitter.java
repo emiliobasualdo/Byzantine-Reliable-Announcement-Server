@@ -63,7 +63,6 @@ public class Twitter implements ServerInt {
      */
     @Override
     public void register(PublicKey publicKey) throws IllegalArgumentException {
-        //publicKeys.put(publicKey, new User(publicKey, "User1")); // TODO: choose the username
         Board b = new Board(publicKey);
         boards.add(b);
         conn.insertBoard(b);
@@ -75,22 +74,23 @@ public class Twitter implements ServerInt {
      * @param key
      * @param message
      * @param announcements
+     * @param signature
      * @return
      * @throws IllegalArgumentException
      */
     @Override
-    public boolean post(PublicKey key, String message, List<Integer> announcements) throws IllegalArgumentException {
+    public boolean post(PublicKey key, String message, List<Integer> announcements, String signature) throws IllegalArgumentException {
         Board b = boardCheck(key);
         if (b == null) throw new IllegalArgumentException("No such board registered with this key");
-        Announcement announcement = new Announcement(key, message, announcements);
+        Announcement announcement = new Announcement(key, message, announcements, signature);
         return conn.insertAnnouncement(b, announcement);
     }
 
     @Override
-    public boolean postGeneral(PublicKey key, String message, List<Integer> announcements) throws IllegalArgumentException {
+    public boolean postGeneral(PublicKey key, String message, List<Integer> announcements, String signature) throws IllegalArgumentException {
         Board b = boards.get(0);
         if (b == null) throw new IllegalArgumentException("No general board registered"); // should never happen, in that case a keypair should have been generated earlier
-        Announcement announcement = new Announcement(key, message, announcements);
+        Announcement announcement = new Announcement(key, message, announcements, signature);
         return conn.insertAnnouncement(b, announcement); // the general board is the first one
     }
 

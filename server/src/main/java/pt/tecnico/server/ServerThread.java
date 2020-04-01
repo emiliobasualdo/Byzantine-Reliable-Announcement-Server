@@ -48,7 +48,7 @@ public class ServerThread implements Runnable {
             if (action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
             int number;
             PublicKey publicKey;
-            String msg;
+            String msg, signature;
             List<Integer> ann;
             List<Announcement> list;
             switch (Action.valueOf(action)) {
@@ -61,25 +61,26 @@ public class ServerThread implements Runnable {
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.board_public_key.name()));
                     number = joMap.getInt(Parameters.number.name());
                     list = twitter.read(publicKey, number);
-                    list = new ArrayList<>();
-                    list.add(new Announcement(publicKey, "hola fucking mundo undo", List.of(1,33,4)));
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case READGENERAL:
                     number = joMap.getInt(Parameters.number.name());
-                    twitter.readGeneral(number);
+                    list = twitter.readGeneral(number);
+                    resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case POST:
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
+                    signature = checkPostSignature(joMap, publicKey);
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.post(publicKey, msg, ann);
+                    twitter.post(publicKey, msg, ann, signature);
                     break;
                 case POSTGENERAL:
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
+                    signature = checkPostSignature(joMap, publicKey);
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.postGeneral(publicKey, msg, ann);
+                    twitter.postGeneral(publicKey, msg, ann, signature);
                     break;
                 default:
                     throw new IllegalArgumentException("Unexpected value: " + Action.valueOf(action).name() + " for action param.");
@@ -88,6 +89,19 @@ public class ServerThread implements Runnable {
             throw new IllegalArgumentException(e.getMessage());
         }
         return resp;
+    }
+
+    private String checkPostSignature(JSONObject req, PublicKey publicKey) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        JSONObject postData = new JSONObject();
+        postData.put(Parameters.message.name(), req.getString(Parameters.message.name()));
+        postData.put(Parameters.announcements.name(), req.getJSONArray(Parameters.announcements.name()));
+        postData.put(Parameters.action.name(), req.getString(Parameters.action.name()));
+        String stringSig = req.getString(Parameters.post_signature.name());
+        byte[] sig = MyCrypto.decodeB64(stringSig);
+        if (!MyCrypto.verifySignature(sig, postData.toString().getBytes(), publicKey)) {
+            throw new IllegalArgumentException("Post signature does not match the post body");
+        }
+        return stringSig;
     }
 
     private JSONObject checkAndExtract(String msg) throws IllegalArgumentException, InternalError {
