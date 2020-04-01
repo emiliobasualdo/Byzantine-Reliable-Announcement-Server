@@ -13,41 +13,24 @@ import java.util.*;
 // https://www.baeldung.com/java-digital-signature
 public class MyCrypto {
     private static final String DIGEST_ALG = "SHA-512";
-    public static final String KEY_ALG = "RSA";
-    public static final int KEY_SIZE = 2048;
+    private static final String KEY_ALG = "RSA";
+    private static final int KEY_SIZE = 2048;
     private static final String KEY_STORE = "PKCS12";
-    private static final String PASSWORD = "pass1234";
     public static final int NONCE_LENGTH = UUID.randomUUID().toString().length();
 
-    private static final String SERVER_KEYSTORE = "server_keystore.p12";
-    public static final String SERVER_ALIAS = "serverKeyPair";
-
-    private static final String CLIENT_KEYSTORE = "client1_keystore.p12";
-    public static final String CLIENT_ALIAS = "client1KeyPair";
-
-
-    public static PrivateKey getPrivateKey(String path, String alias) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, CertificateException {
+    public static PrivateKey getPrivateKey(String path, String alias, String password) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance(KEY_STORE);
-        switch (alias) {
-            case SERVER_ALIAS:
-                keyStore.load(new FileInputStream(path+SERVER_KEYSTORE), PASSWORD.toCharArray());
-                break;
-            case CLIENT_ALIAS:
-                keyStore.load(new FileInputStream(path+CLIENT_KEYSTORE), PASSWORD.toCharArray());
-                break;
-        }
-        return (PrivateKey) keyStore.getKey(alias, PASSWORD.toCharArray());
+        keyStore.load(new FileInputStream(path), password.toCharArray());
+        return (PrivateKey) keyStore.getKey(alias, password.toCharArray());
     }
 
-    public static PublicKey getPublicKey(String path, String alias) throws KeyStoreException, NoSuchAlgorithmException, IOException, CertificateException {
-        switch (alias) {
-            case CLIENT_ALIAS:
-                KeyStore keyStore = KeyStore.getInstance(KEY_STORE);
-                keyStore.load(new FileInputStream(path+CLIENT_KEYSTORE), PASSWORD.toCharArray());
-                Certificate certificate = keyStore.getCertificate(CLIENT_ALIAS);
-                return certificate.getPublicKey();
-        }
-        return null;
+    public static PublicKey getPublicKey(String path, String alias, String password) throws KeyStoreException, NoSuchAlgorithmException, IOException, CertificateException {
+        Certificate certificate;
+        KeyStore keyStore;
+        keyStore = KeyStore.getInstance(KEY_STORE);
+        keyStore.load(new FileInputStream(path), password.toCharArray());
+        certificate = keyStore.getCertificate(alias);
+        return certificate.getPublicKey();
     }
 
     public static byte[] digest(byte[] messageBytes) throws NoSuchAlgorithmException {

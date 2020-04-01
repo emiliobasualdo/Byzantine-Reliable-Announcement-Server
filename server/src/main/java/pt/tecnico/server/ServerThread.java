@@ -42,6 +42,7 @@ public class ServerThread implements Runnable {
     }
 
     private JSONObject handleRequest(JSONObject joMap) {
+        JSONObject resp = new JSONObject();
         try {
             String action = joMap.getString(Parameters.action.name());
             if (action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
@@ -49,15 +50,20 @@ public class ServerThread implements Runnable {
             PublicKey publicKey;
             String msg;
             List<Integer> ann;
+            List<Announcement> list;
             switch (Action.valueOf(action)) {
                 case REGISTER:
-                    publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.board_public_key.name()));
+                    publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
                     twitter.register(publicKey);
+                    resp.put(Parameters.data.name(), "Correctly registered");
                     break;
                 case READ:
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.board_public_key.name()));
                     number = joMap.getInt(Parameters.number.name());
-                    twitter.read(publicKey, number);
+                    list = twitter.read(publicKey, number);
+                    list = new ArrayList<>();
+                    list.add(new Announcement(publicKey, "hola fucking mundo undo", List.of(1,33,4)));
+                    resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case READGENERAL:
                     number = joMap.getInt(Parameters.number.name());
@@ -79,10 +85,9 @@ public class ServerThread implements Runnable {
                     throw new IllegalArgumentException("Unexpected value: " + Action.valueOf(action).name() + " for action param.");
             }
         } catch (Exception e) {
-            System.out.println(e.getMessage());
             throw new IllegalArgumentException(e.getMessage());
         }
-        return new JSONObject("{\"data\": \"This is a correct output\"}");
+        return resp;
     }
 
     private JSONObject checkAndExtract(String msg) throws IllegalArgumentException, InternalError {
@@ -137,6 +142,7 @@ public class ServerThread implements Runnable {
         System.out.println("Thread up and running");
         try {
             receive(in.readLine());
+            receive(in.readLine());
         } catch (IOException | IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
             throw new InternalError(e);
         }
@@ -148,6 +154,7 @@ public class ServerThread implements Runnable {
         try {
             // extract the client's nonce and public key and check signature
             JSONObject packet = checkAndExtract(msg);
+            System.out.println("Client message:" + packet.toString(2));
             if(clientNonce == null) { // first packet of the protocol
                 // we set the client's nonec and create the server's (our) nonce
                 setNonecs(packet.getString(Parameters.client_nonce.name()));

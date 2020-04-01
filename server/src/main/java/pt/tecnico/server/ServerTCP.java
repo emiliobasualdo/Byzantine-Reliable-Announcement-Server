@@ -1,25 +1,17 @@
 package pt.tecnico.server;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import pt.tecnico.model.*;
+import pt.tecnico.model.MyCrypto;
 
-import javax.crypto.BadPaddingException;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-
-import static pt.tecnico.model.MyCrypto.SERVER_ALIAS;
-
 
 // https://dzone.com/articles/simple-http-server-in-java
 
@@ -49,9 +41,9 @@ public class ServerTCP {
     public static void main(String[] args) {
         try {
             // We need the the path of the folder where to save the keys
-            if (args.length == 0) throw new IllegalArgumentException("Specify the path for the keys");
+            if(args.length < 3) throw new IllegalArgumentException("Specify key-store-path, alias, password");
             // We get the server's private key
-            PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], SERVER_ALIAS);
+            PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], args[1], args[2]);
             // We start the server
             Twitter twitter = new Twitter();
             ServerTCP server = new ServerTCP(twitter, privateKey);

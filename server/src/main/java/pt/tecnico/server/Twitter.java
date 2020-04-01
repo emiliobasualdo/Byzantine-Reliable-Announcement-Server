@@ -79,7 +79,7 @@ public class Twitter implements ServerInt {
      * @throws IllegalArgumentException
      */
     @Override
-    public boolean post(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
+    public boolean post(PublicKey key, String message, List<Integer> announcements) throws IllegalArgumentException {
         Board b = boardCheck(key);
         if (b == null) throw new IllegalArgumentException("No such board registered with this key");
         Announcement announcement = new Announcement(key, message, announcements);
@@ -87,7 +87,7 @@ public class Twitter implements ServerInt {
     }
 
     @Override
-    public boolean postGeneral(PublicKey key, String message, List<Announcement> announcements) throws IllegalArgumentException {
+    public boolean postGeneral(PublicKey key, String message, List<Integer> announcements) throws IllegalArgumentException {
         Board b = boards.get(0);
         if (b == null) throw new IllegalArgumentException("No general board registered"); // should never happen, in that case a keypair should have been generated earlier
         Announcement announcement = new Announcement(key, message, announcements);

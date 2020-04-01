@@ -7,14 +7,16 @@ import java.util.List;
 public class Announcement implements Serializable {
     private PublicKey owner;
     private String message;
-    private List<Announcement> announcements;
+    private List<Integer> announcements;
     private Integer id = null;
+    private String signature;
 
-    public Announcement(PublicKey user, String message, List<Announcement> announcements) {
+    public Announcement(PublicKey user, String message, List<Integer> announcements, String signature) {
         postCheck(message, announcements);
         this.message = message;
         this.announcements = announcements;
         this.owner = user;
+        this.signature = signature;
     }
 
     /**
@@ -25,7 +27,7 @@ public class Announcement implements Serializable {
      * @param announcements
      * @throws IllegalArgumentException
      */
-    private void postCheck(String message, List<Announcement> announcements) throws IllegalArgumentException {
+    private void postCheck(String message, List<Integer> announcements) throws IllegalArgumentException {
         if (message == null || message.length() == 0 || message.length() == 255)
             throw new IllegalArgumentException("Message length must be between 0 and 255 characters");
         if (announcements != null && announcements.size() > 1000)
@@ -40,7 +42,7 @@ public class Announcement implements Serializable {
         return message;
     }
 
-    public List<Announcement> getAnnouncements() {
+    public List<Integer> getAnnouncements() {
         return announcements;
     }
 
