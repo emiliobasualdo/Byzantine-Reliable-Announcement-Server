@@ -1,10 +1,13 @@
 package pt.tecnico.client;
 
+import com.sun.tools.javac.Main;
 import org.beryx.textio.TextIO;
 import org.beryx.textio.TextIoFactory;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import pt.tecnico.model.*;
+import pt.tecnico.model.Action;
+import pt.tecnico.model.MyCrypto;
+import pt.tecnico.model.Parameters;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -25,45 +28,45 @@ public class Client {
     private static PublicKey pub;
     private static PrivateKey priv;
     private static PublicKey serverPublicKey;
-
+    TextIO textIO;
     private Socket socket;
     private PrintWriter out;
     private BufferedReader in;
-
     private String serverNonce;
     private String clientNonce;
 
-    TextIO textIO;
-
     public static void main(String[] args) {
         // We need the the path of the folder where to save the keys
-        if(args.length < 4) throw new IllegalArgumentException("Specify [key-store-path] [alias] [password] [server-port]");
-        try {
-            // We get the client's keys and server's public key
-            KeyPair kp = MyCrypto.generateKeyPair();
-            priv = kp.getPrivate();
-            pub = kp.getPublic();
-            serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
-            // we connect to the server
-            Client client = new Client();
-            client.start(Integer.parseInt(args[3]));
-        } catch (Exception e) {
-            System.err.println(e.getMessage());
+        if (args.length != 5)
+            System.out.println("Syntax: client <key-store-path> <alias> <password> <server-ip> <server-port>");
+        else {
+            try {
+                // We get the client's keys and server's public key
+                KeyPair kp = MyCrypto.generateKeyPair();
+                priv = kp.getPrivate();
+                pub = kp.getPublic();
+                serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
+                // we connect to the server
+                Client client = new Client();
+                client.start(args[3], Integer.parseInt(args[4]));
+            } catch (Exception e) {
+                System.err.println(e.getMessage());
+            }
         }
     }
 
-    private void open(int serverPort) {
+    private void open(String serverIp, int serverPort) {
         try {
-            socket = new Socket("127.0.0.1", serverPort);
-            socket.setSoTimeout(30*1000);
+            socket = new Socket(serverIp, serverPort);
+            socket.setSoTimeout(30 * 1000);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            System.out.println("New TCP connection with the server opened at port "+socket.getLocalPort());
+            System.out.println("New TCP connection with the server opened on port " + socket.getLocalPort());
         } catch (IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
         }
-    };
+    }
 
     private void close() throws IOException {
         in.close();
@@ -71,20 +74,21 @@ public class Client {
         socket.close();
     }
 
-    private void start(int serverPort) throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
+    private void start(String serverIp, int serverPort) throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
         textIO = TextIoFactory.getTextIO();
-        System.out.println("Hello. This is the client for the for the Highly Dependable Announcement Server.");
+        System.out.println("Hello. This is the client for the for the Highly Dependable Announcement Server project.");
         List<String> enumNames = Stream.of(Options.values())
                 .map(Enum::name)
                 .collect(Collectors.toList());
         while (true) {
-            open(serverPort);
+            open(serverIp, serverPort);
             String option = textIO.newStringInputReader()
                     .withNumberedPossibleValues(enumNames)
                     .read("What do you want to do?");
 
-            Runnable method = () -> {};
-            switch (Options.valueOf(option)){
+            Runnable method = () -> {
+            };
+            switch (Options.valueOf(option)) {
                 case PRINT_MY_PUBLIC_KEY:
                     System.out.println(pub);
                     System.out.println(MyCrypto.publicKeyToB64String(pub));
@@ -99,15 +103,15 @@ public class Client {
                     PublicKey pk = MyCrypto.publicKeyFromB64String(pkString);
                     String message = textIO.newStringInputReader().read("The message");
                     JSONArray ann = new JSONArray(textIO.newIntInputReader().withMinVal(0).readList("The list(comma separated) of the announcements it makes reference to"));
-                    byte[] signature = MyCrypto.decodeB64(textIO.newStringInputReader().read("The post_signature"));
+                    byte[] signature = MyCrypto.decodeB64(textIO.newStringInputReader().read("The post signature"));
                     String board = textIO.newStringInputReader().withNumberedPossibleValues("Personal", "General").read("The type of board it was published to");
                     JSONObject post = new JSONObject();
                     post.put(Parameters.message.name(), message);
                     post.put(Parameters.announcements.name(), ann);
-                    post.put(Parameters.action.name(), board.equals("Personal")? Action.POST.name() : Action.POSTGENERAL.name());
+                    post.put(Parameters.action.name(), board.equals("Personal") ? Action.POST.name() : Action.POSTGENERAL.name());
                     System.out.println("This is the post you are going to verify:");
                     System.out.println(post.toString(2));
-                    if(!textIO.newBooleanInputReader().read("Continue?")) return;
+                    if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?")) return;
                     if (MyCrypto.verifySignature(signature, post.toString().getBytes(), pk)) {
                         System.out.println("Correct signature! :) ");
                     } else {
@@ -149,7 +153,7 @@ public class Client {
                 case EXIT:
                     return;
             }
-            if(initCommunication()) {
+            if (initCommunication()) {
                 method.run();
             }
             close();
@@ -167,7 +171,7 @@ public class Client {
         // prompt user
         System.out.println("Your first request body is:");
         System.out.println(req.toString(2));
-        if(!textIO.newBooleanInputReader().read("Continue?")) return false;
+        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?")) return false;
         // write
         out.println(req.toString());
         // wait for answer
@@ -186,12 +190,14 @@ public class Client {
             byte[] sig = MyCrypto.decodeB64(resp.getString(Parameters.signature.name()));
             resp.remove(Parameters.signature.name());
             // We verify that the message was not altered
-            if (!MyCrypto.verifySignature(sig, resp.toString().getBytes(), serverPublicKey)) throw new IllegalArgumentException("Signature does not match");
+            if (!MyCrypto.verifySignature(sig, resp.toString().getBytes(), serverPublicKey))
+                throw new IllegalArgumentException("Signature does not match");
             // If nonces are set then we check their validity
             String respClientNonce = resp.getString(Parameters.client_nonce.name());
             String respServerNonce = resp.getString(Parameters.server_nonce.name());
             // No need to check for null or length as equals does that
-            if(!clientNonce.equals(respClientNonce) || !serverNonce.equals(respServerNonce)) throw new IllegalArgumentException("Nonces don't match");
+            if (!clientNonce.equals(respClientNonce) || !serverNonce.equals(respServerNonce))
+                throw new IllegalArgumentException("Nonces don't match");
             System.out.println("Server's signature and nonce are correct");
             return true;
         } catch (Exception e) {
@@ -224,7 +230,7 @@ public class Client {
     private JSONObject secondRequest(JSONObject req) {
         System.out.println("Your second request body is:");
         System.out.println(req.toString(2));
-        if(!textIO.newBooleanInputReader().read("Continue?")) System.exit(1);
+        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?")) System.exit(1);
         out.println(req.toString());
         try {
             JSONObject resp = new JSONObject(in.readLine());
@@ -298,7 +304,7 @@ public class Client {
         READ_GENERAL,
         POST,
         POST_GENERAL,
-        EXIT;
+        EXIT
     }
 }
 

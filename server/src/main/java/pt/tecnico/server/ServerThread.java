@@ -74,7 +74,7 @@ public class ServerThread implements Runnable {
                     signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.post(publicKey, signature, msg, ann );
+                    twitter.post(publicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted correctly!");
                     break;
                 case POSTGENERAL:
@@ -173,7 +173,7 @@ public class ServerThread implements Runnable {
             // extract the client's nonce and public key and check signature
             JSONObject packet = checkAndExtract(msg);
             System.out.println("Client message:" + packet.toString(2));
-            if(clientNonce == null) { // first packet of the protocol
+            if (clientNonce == null) { // first packet of the protocol
                 // we set the client's nonec and create the server's (our) nonce
                 setNonecs(packet.getString(Parameters.client_nonce.name()));
                 // answer server's nonce using client's nonce

@@ -5,9 +5,9 @@
     <!-- parent pom -->
     <groupId>pt.tecnico.hds</groupId>
     <version>1.0</version>
-    <artifactId>Hds</artifactId>
+    <artifactId>DPAS</artifactId>
     <packaging>pom</packaging>
-    <name>Hds</name>
+    <name>DPAS</name>
 
     <properties>
         <maven.compiler.release>11</maven.compiler.release>
