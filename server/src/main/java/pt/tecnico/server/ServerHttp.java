@@ -7,7 +7,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import pt.tecnico.model.Action;
-import pt.tecnico.model.Announcement;
 import pt.tecnico.model.MyCrypto;
 import pt.tecnico.model.Parameters;
 
@@ -33,12 +32,32 @@ import static pt.tecnico.model.MyCrypto.SERVER_ALIAS;
 public class ServerHttp implements HttpHandler {
     private static final String HTTP_HOST = "localhost";
     private static final int HTTP_PORT = 8001;
-    private Twitter twitter;
-    private PrivateKey privateKey;
+    private final Twitter twitter;
+    private final PrivateKey privateKey;
 
     public ServerHttp(Twitter twitter, PrivateKey privateKey) {
         this.twitter = twitter;
         this.privateKey = privateKey;
+    }
+
+    public static void main(String[] args) {
+        try {
+            // We need the the path of the folder where to save the keys
+            if (args.length == 0) throw new IllegalArgumentException("Specify the path for the keys");
+            // We get the server's private key
+            PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], SERVER_ALIAS);
+            // We start the server
+            Twitter twitter = new Twitter();
+            HttpServer server = HttpServer.create(new InetSocketAddress(HTTP_HOST, HTTP_PORT), 0);
+            server.createContext("/twitter", new ServerHttp(twitter, privateKey));
+            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+            server.setExecutor(threadPoolExecutor);
+            server.start();
+            System.out.println("Server started on port " + HTTP_PORT);
+        } catch (Exception e) {
+            System.err.println("Server exception: " + e.toString());
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -61,7 +80,7 @@ public class ServerHttp implements HttpHandler {
             String publicKey;
             String signature;
             String msg;
-            List<Announcement> ann;
+            List<Integer> ann;
             switch (Action.valueOf(action)) {
                 case REGISTER:
                     publicKey = params.getString(Parameters.board_public_key.name());
@@ -80,14 +99,14 @@ public class ServerHttp implements HttpHandler {
                     publicKey = params.getString(Parameters.board_public_key.name());
                     signature = params.getString(Parameters.signature.name());
                     msg = params.getString(Parameters.message.name());
-                    ann = (List<Announcement>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
+                    ann = (List<Integer>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
                     twitter.post(publicKey, signature, msg, ann);
                     break;
                 case POSTGENERAL:
                     publicKey = params.getString(Parameters.board_public_key.name());
                     signature = params.getString(Parameters.signature.name());
                     msg = params.getString(Parameters.message.name());
-                    ann = (List<Announcement>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
+                    ann = (List<Integer>) jsonArrayToList(params.getJSONArray(Parameters.announcements.name()));
                     twitter.postGeneral(publicKey, signature, msg, ann);
                     break;
                 default:
@@ -143,26 +162,6 @@ public class ServerHttp implements HttpHandler {
         outputStream.write(response.getBytes());
         outputStream.flush();
         outputStream.close();
-    }
-
-    public static void main(String[] args) {
-        try {
-            // We need the the path of the folder where to save the keys
-            if (args.length == 0) throw new IllegalArgumentException("Specify the path for the keys");
-            // We get the server's private key
-            PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], SERVER_ALIAS);
-            // We start the server
-            Twitter twitter = new Twitter();
-            HttpServer server = HttpServer.create(new InetSocketAddress(HTTP_HOST, HTTP_PORT), 0);
-            server.createContext("/twitter", new ServerHttp(twitter, privateKey));
-            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
-            server.setExecutor(threadPoolExecutor);
-            server.start();
-            System.out.println("Server started on port " + HTTP_PORT);
-        } catch (Exception e) {
-            System.err.println("Server exception: " + e.toString());
-            e.printStackTrace();
-        }
     }
 
 }

@@ -11,19 +11,29 @@ import java.util.Collections;
 import java.util.List;
 
 public class Board {
-    private String publicKey;
+    private final String publicKey;
     private List<Announcement> announcements;
     private Integer id = null;
 
     public Board(String publicKey) {
         this.publicKey = publicKey;
-        this.announcements =new ArrayList<>();
+        this.announcements = new ArrayList<>();
     }
 
     public Board(String publicKey, Integer id, List<Announcement> announcements) {
         this.publicKey = publicKey;
         this.id = id;
         this.announcements = announcements;
+    }
+
+    public static Board genGeneralBoard() {
+        PublicKey board_key = null;
+        try {
+            board_key = MyCrypto.generateKeyPair().getPublic(); // TODO: generate keypair for the general board in a better way
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        return new Board(MyCrypto.publicKeyToB64String(board_key));
     }
 
     public String getPublicKey() {
@@ -45,11 +55,6 @@ public class Board {
         int size = announcements.size();
         int from = number <= size ? size - number : 0;
         return announcements.subList(from, size);
-    }
-
-    public static Board genGeneralBoard() throws NoSuchAlgorithmException {
-        PublicKey board_key = MyCrypto.generateKeyPair().getPublic(); // TODO: generate keypair for the general board
-        return new Board(MyCrypto.publicKeyToB64String(board_key));
     }
 
     public Integer getId() {

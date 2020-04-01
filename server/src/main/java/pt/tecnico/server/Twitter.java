@@ -12,11 +12,12 @@ import java.util.List;
  */
 public class Twitter implements ServerInt {
     //private Map<PublicKey, User> publicKeys = new HashMap<>();
-    private List<Board> boards = new ArrayList<>();
-    private Connect conn;
+    private final List<Board> boards = new ArrayList<>();
+    private final List<Integer> announcements = new ArrayList<>();
+    private final Connect conn;
 
     public Twitter() {
-        conn = new Connect(this.boards); //init the database connection
+        conn = new Connect(this.boards, this.announcements); //init the database connection
     }
 
     /*
@@ -39,6 +40,16 @@ public class Twitter implements ServerInt {
     }
 
     /**
+     * Check if an announcement with the specified id had been posted
+     *
+     * @param announcementsIds List of announcements ids to refer to
+     * @return true if found, false otherwise
+     */
+    private boolean announcementExists(List<Integer> announcementsIds) {
+        return this.announcements.containsAll(announcementsIds);
+    }
+
+    /**
      * Check if an announcement reading request has a correct number specified
      *
      * @param number int corresponding to the number of announcements to read
@@ -58,32 +69,44 @@ public class Twitter implements ServerInt {
             boards.add(b);
     }
 
-    @Override
-    public boolean post(String key, String signature, String message, List<Announcement> announcements) throws IllegalArgumentException {
+    /**
+     * Subroutine to post an announcement, meant to be called from post() and postGeneral methods
+     *
+     * @param key           Base64 encoded String corresponding to the Client public key
+     * @param signature     Base64 encoded String corresponding to the announcement signature
+     * @param message       String corresponding to the message
+     * @param announcements List of announcements ids to refer to
+     * @param board         Board to post to
+     * @return true if the insert was successful, false otherwise
+     */
+    private boolean genericPost(String key, String signature, String message, List<Integer> announcements, Board board) {
         boolean ret;
-        Board b = findBoard(key);
-        if (b == null)
-            throw new IllegalArgumentException("No such board registered with this key");
+        if (!announcementExists(announcements))
+            throw new IllegalArgumentException("One or more referring announcements specified do not exist");
 
-        Announcement announcement = new Announcement(key, signature, message, Announcement.announcementsListToIntegers(announcements));
-        ret = conn.insertAnnouncement(b, announcement); // insert announcement and update its id
-        if (ret)
-            b.post(announcement);
+        Announcement announcement = new Announcement(key, signature, message, announcements);
+        ret = conn.insertAnnouncement(board, announcement); // insert announcement and update its id
+        if (ret) {
+            board.post(announcement);
+            announcements.add(announcement.getId());
+        }
         return ret;
     }
 
     @Override
-    public boolean postGeneral(String key, String signature, String message, List<Announcement> announcements) throws IllegalArgumentException {
-        boolean ret;
+    public boolean post(String key, String signature, String message, List<Integer> announcements) throws IllegalArgumentException {
+        Board b = findBoard(key);
+        if (b == null)
+            throw new IllegalArgumentException("No such board registered with this key");
+        return genericPost(key, signature, message, announcements, b);
+    }
+
+    @Override
+    public boolean postGeneral(String key, String signature, String message, List<Integer> announcements) throws IllegalArgumentException {
         Board b = boards.get(0); // the general board is the first one
         if (b == null)
             throw new IllegalArgumentException("No general board registered"); // should never happen, in that case a keypair should have been generated earlier
-
-        Announcement announcement = new Announcement(key, signature, message, Announcement.announcementsListToIntegers(announcements));
-        ret = conn.insertAnnouncement(b, announcement); // insert announcement and update its id
-        if (ret)
-            b.post(announcement);
-        return ret;
+        return genericPost(key, signature, message, announcements, b);
     }
 
     @Override
