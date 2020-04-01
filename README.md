@@ -23,15 +23,15 @@ mvn clean install
 ```
 
 ### 3. Start the server
-Pass the path where the `server_keystore` was saved, the key alias, the password and the port the server will listen to
+Pass the path where the `server_keystore` was saved, the key alias, the password, the ip and the port the server will listen to
 ```shell script
-java -jar server/target/server-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 8000
+java -jar server/target/server-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000
 ```
 
 ### 4. Start the client
-Pass the path where the `server_keystore` was saved, the key alias, the password, the server port
+Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port
 ```shell script
-java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234
+java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair 127.0.0.1 pass1234
 ```
 
 # Run a hacker
@@ -41,9 +41,9 @@ To simulate a hacker you can start a proxy server that can read, drop, edit and 
 3. Start the client and tell him the server is at Y
 
 ### Start the hacker
-Pass the port where the hacker will start and the port where the server is
+Pass the port where the hacker will start, the ip and the port the server is listening to
 ```shell script
-java -jar hacker/target/hacker-1.0-jar-with-dependencies.jar 8001 8000
+java -jar hacker/target/hacker-1.0-jar-with-dependencies.jar 8001 127.0.0.1 8000
 ```
 
 # Run maven tests
