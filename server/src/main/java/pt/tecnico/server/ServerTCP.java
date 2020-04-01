@@ -32,6 +32,8 @@ public class ServerTCP {
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
         while (true) {
             Socket clientSocket = serverSocket.accept();
+            System.out.println("Established connection with client-> "+ clientSocket.getInetAddress().toString() +":"+clientSocket.getPort());
+            System.out.println("Creating new thread");
             BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true, StandardCharsets.UTF_8);
             threadPoolExecutor.execute(new ServerThread(twitter, privateKey, clientSocket, in, out));

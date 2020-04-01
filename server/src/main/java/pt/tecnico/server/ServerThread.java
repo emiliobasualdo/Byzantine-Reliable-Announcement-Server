@@ -44,6 +44,7 @@ public class ServerThread implements Runnable {
     private JSONObject handleRequest(JSONObject joMap) {
         JSONObject resp = new JSONObject();
         try {
+            if (!joMap.has(Parameters.action.name())) throw new IllegalArgumentException("Action can not be null");
             String action = joMap.getString(Parameters.action.name());
             if (action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
             int number;
@@ -74,6 +75,7 @@ public class ServerThread implements Runnable {
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     twitter.post(publicKey, msg, ann, signature);
+                    resp.put(Parameters.data.name(), "Posted correctly!");
                     break;
                 case POSTGENERAL:
                     publicKey = MyCrypto.publicKeyFromB64String(joMap.getString(Parameters.client_public_key.name()));
@@ -81,6 +83,7 @@ public class ServerThread implements Runnable {
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     twitter.postGeneral(publicKey, msg, ann, signature);
+                    resp.put(Parameters.data.name(), "Posted correctly!");
                     break;
                 default:
                     throw new IllegalArgumentException("Unexpected value: " + Action.valueOf(action).name() + " for action param.");
@@ -153,7 +156,6 @@ public class ServerThread implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("Thread up and running");
         try {
             receive(in.readLine());
             receive(in.readLine());

@@ -46,7 +46,6 @@ public class Client {
             serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
             // we connect to the server
             Client client = new Client();
-            System.out.println("Connected to server");
             client.start();
         } catch (Exception e) {
             System.err.println(e.getMessage());
@@ -58,7 +57,7 @@ public class Client {
             socket = new Socket("127.0.0.1", 8001);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            System.out.println("New TCP connection with the server opened");
+            System.out.println("New TCP connection with the server opened at port "+socket.getLocalPort());
         } catch (IOException e) {
             System.err.println(e.getMessage());
             System.exit(1);
