@@ -17,28 +17,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 // https://dzone.com/articles/simple-http-server-in-java
 
 public class ServerTCP {
-    private Twitter twitter;
-    private PrivateKey privateKey;
+    private final Twitter twitter;
+    private final PrivateKey privateKey;
 
     private ServerTCP(Twitter twitter, PrivateKey privateKey) {
         this.twitter = twitter;
         this.privateKey = privateKey;
-    }
-
-    private void start(String ip, int port) throws IOException {
-        ServerSocket serverSocket = new ServerSocket(port, 0, InetAddress.getByName(ip));
-        System.out.println("Server up, listening on " + ip + ":" + port + " and waiting for connections");
-        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
-        while (true) {
-            Socket clientSocket = serverSocket.accept();
-            clientSocket.setSoTimeout(30 * 1000);
-            System.out.println("Established connection with client-> " +
-                    clientSocket.getInetAddress().toString() + ":" + clientSocket.getPort());
-            System.out.println("Creating new thread");
-            BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true, StandardCharsets.UTF_8);
-            threadPoolExecutor.execute(new ServerThread(twitter, privateKey, clientSocket, in, out));
-        }
     }
 
     public static void main(String[] args) {
@@ -57,6 +41,22 @@ public class ServerTCP {
         } catch (Exception e) {
             System.err.println("Server exception: " + e.toString());
             e.printStackTrace();
+        }
+    }
+
+    private void start(String ip, int port) throws IOException {
+        ServerSocket serverSocket = new ServerSocket(port, 0, InetAddress.getByName(ip));
+        System.out.println("Server up, listening on " + ip + ":" + port + " and waiting for connections");
+        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+        while (true) {
+            Socket clientSocket = serverSocket.accept();
+            clientSocket.setSoTimeout(30 * 1000);
+            System.out.println("Established connection with client-> " +
+                    clientSocket.getInetAddress().toString() + ":" + clientSocket.getPort());
+            System.out.println("Creating new thread");
+            BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true, StandardCharsets.UTF_8);
+            threadPoolExecutor.execute(new ServerThread(twitter, privateKey, clientSocket, in, out));
         }
     }
 

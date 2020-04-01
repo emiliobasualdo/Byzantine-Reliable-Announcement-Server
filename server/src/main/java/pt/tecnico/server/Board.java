@@ -12,7 +12,7 @@ import java.util.List;
 
 public class Board {
     private final String publicKey;
-    private List<Announcement> announcements;
+    private final List<Announcement> announcements;
     private Integer id = null;
 
     public Board(String publicKey) {

@@ -5,7 +5,7 @@
 # Run
 ### 0. Keys path
 Determine a local path where to save the server keys.  
-Ex: `/Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/`
+Ex: `/local/path/to/save/keys`
 
 ### 1. Generate server keystore
 ```shell script
@@ -31,7 +31,7 @@ java -jar server/target/server-1.0-jar-with-dependencies.jar /local/path/to/save
 ### 4. Start the client
 Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port
 ```shell script
-java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair 127.0.0.1 pass1234
+java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000
 ```
 
 # Run a hacker

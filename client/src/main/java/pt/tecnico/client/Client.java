@@ -1,6 +1,5 @@
 package pt.tecnico.client;
 
-import com.sun.tools.javac.Main;
 import org.beryx.textio.TextIO;
 import org.beryx.textio.TextIoFactory;
 import org.json.JSONArray;
@@ -28,6 +27,8 @@ public class Client {
     private static PublicKey pub;
     private static PrivateKey priv;
     private static PublicKey serverPublicKey;
+    private static String serverIp;
+    private static int serverPort;
     TextIO textIO;
     private Socket socket;
     private PrintWriter out;
@@ -47,15 +48,17 @@ public class Client {
                 pub = kp.getPublic();
                 serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
                 // we connect to the server
+                serverIp = args[3];
+                serverPort = Integer.parseInt(args[4]);
                 Client client = new Client();
-                client.start(args[3], Integer.parseInt(args[4]));
+                client.start();
             } catch (Exception e) {
                 System.err.println(e.getMessage());
             }
         }
     }
 
-    private void open(String serverIp, int serverPort) {
+    private void open() {
         try {
             socket = new Socket(serverIp, serverPort);
             socket.setSoTimeout(30 * 1000);
@@ -74,14 +77,14 @@ public class Client {
         socket.close();
     }
 
-    private void start(String serverIp, int serverPort) throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
+    private void start() throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
         textIO = TextIoFactory.getTextIO();
         System.out.println("Hello. This is the client for the for the Highly Dependable Announcement Server project.");
         List<String> enumNames = Stream.of(Options.values())
                 .map(Enum::name)
                 .collect(Collectors.toList());
         while (true) {
-            open(serverIp, serverPort);
+            //4open();
             String option = textIO.newStringInputReader()
                     .withNumberedPossibleValues(enumNames)
                     .read("What do you want to do?");
@@ -137,7 +140,7 @@ public class Client {
                 case POST:
                     method = () -> {
                         String msg = textIO.newStringInputReader().read("Type the announcement message");
-                        System.out.println("Type the announcements's ids you want to make reference separated by commas");
+                        System.out.println("Type the announcements's ids you want to make reference separated by commas:");
                         List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
                         post(msg, list);
                     };
@@ -145,7 +148,7 @@ public class Client {
                 case POST_GENERAL:
                     method = () -> {
                         String msg = textIO.newStringInputReader().read("Type the announcement message");
-                        System.out.println("Type the announcements's ids you want to make reference to separated by commas");
+                        System.out.println("Type the announcements's ids you want to make reference to separated by commas:");
                         List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
                         postGeneral(msg, list);
                     };
@@ -160,7 +163,7 @@ public class Client {
         }
     }
 
-    private boolean initCommunication() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException, IOException {
+    private boolean initCommunication() throws IOException {
         // generate our nonce
         clientNonce = MyCrypto.getRandomNonce();
         // send the initial package
@@ -173,6 +176,7 @@ public class Client {
         System.out.println(req.toString(2));
         if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?")) return false;
         // write
+        open();
         out.println(req.toString());
         // wait for answer
         JSONObject resp = new JSONObject(in.readLine()); // todo wait max seconds
@@ -183,7 +187,8 @@ public class Client {
         return true;
     }
 
-    private boolean verifySignature(JSONObject oResp) throws IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private boolean verifySignature(JSONObject oResp) {
         JSONObject resp = new JSONObject(oResp.toString());
         try {
             if (resp.length() == 0) throw new IllegalArgumentException("Empty answer");
@@ -227,6 +232,7 @@ public class Client {
         }
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     private JSONObject secondRequest(JSONObject req) {
         System.out.println("Your second request body is:");
         System.out.println(req.toString(2));

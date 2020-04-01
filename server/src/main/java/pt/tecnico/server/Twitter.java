@@ -11,7 +11,6 @@ import java.util.List;
  * Twitter base class to abstract the DBMS layer
  */
 public class Twitter implements ServerInt {
-    //private Map<PublicKey, User> publicKeys = new HashMap<>();
     private final List<Board> boards = new ArrayList<>();
     private final List<Integer> announcements = new ArrayList<>();
     private final Connect conn;
@@ -19,15 +18,6 @@ public class Twitter implements ServerInt {
     public Twitter() {
         conn = new Connect(this.boards, this.announcements); //init the database connection
     }
-
-    /*
-    private User publicKeyCheck(PublicKey key) throws IllegalArgumentException {
-        User user = publicKeys.get(key);
-        if (user == null)
-            throw new IllegalArgumentException("No such key");
-        return user;
-    }
-    */
 
     /**
      * Check if a public key is already registered as a board
@@ -61,7 +51,6 @@ public class Twitter implements ServerInt {
 
     @Override
     public void register(String publicKey) throws IllegalArgumentException {
-        //publicKeys.put(publicKey, new User(publicKey, "User1")); // TODO: choose the username
         if (findBoard(publicKey) != null)
             throw new IllegalArgumentException("A board with this public key already exists");
         Board b = new Board(publicKey);

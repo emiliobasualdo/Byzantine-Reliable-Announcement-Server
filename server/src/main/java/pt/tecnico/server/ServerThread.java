@@ -23,12 +23,12 @@ import java.util.List;
 
 public class ServerThread implements Runnable {
 
-    private ServerInt twitter;
-    private PrivateKey privateKey;
+    private final ServerInt twitter;
+    private final PrivateKey privateKey;
 
-    private Socket clientSocket;
-    private PrintWriter out;
-    private BufferedReader in;
+    private final Socket clientSocket;
+    private final PrintWriter out;
+    private final BufferedReader in;
 
     private String serverNonce;
     private String clientNonce;
@@ -56,7 +56,7 @@ public class ServerThread implements Runnable {
                 case REGISTER:
                     publicKey = joMap.getString(Parameters.client_public_key.name());
                     twitter.register(publicKey);
-                    resp.put(Parameters.data.name(), "Correctly registered");
+                    resp.put(Parameters.data.name(), "Successfully registered");
                     break;
                 case READ:
                     publicKey = joMap.getString(Parameters.board_public_key.name());
@@ -75,7 +75,7 @@ public class ServerThread implements Runnable {
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     twitter.post(publicKey, signature, msg, ann);
-                    resp.put(Parameters.data.name(), "Posted correctly!");
+                    resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
                 case POSTGENERAL:
                     publicKey = joMap.getString(Parameters.client_public_key.name());
@@ -83,7 +83,7 @@ public class ServerThread implements Runnable {
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     twitter.postGeneral(publicKey, signature, msg, ann);
-                    resp.put(Parameters.data.name(), "Posted correctly!");
+                    resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
                 default:
                     throw new IllegalArgumentException("Unexpected value: " + Action.valueOf(action).name() + " for action param.");
@@ -174,8 +174,8 @@ public class ServerThread implements Runnable {
             JSONObject packet = checkAndExtract(msg);
             System.out.println("Client message:" + packet.toString(2));
             if (clientNonce == null) { // first packet of the protocol
-                // we set the client's nonec and create the server's (our) nonce
-                setNonecs(packet.getString(Parameters.client_nonce.name()));
+                // we set the client's nonce and create the server's (our) nonce
+                setNonces(packet.getString(Parameters.client_nonce.name()));
                 // answer server's nonce using client's nonce
                 resp = new JSONObject();
                 close = false;
@@ -201,17 +201,17 @@ public class ServerThread implements Runnable {
         return resp;
     }
 
-    private void setNonecs(String nonce) throws IllegalArgumentException {
-        setClientNonec(nonce);
-        setServerNonec();
+    private void setNonces(String nonce) throws IllegalArgumentException {
+        setClientNonce(nonce);
+        setServerNonce();
     }
 
-    private void setServerNonec() {
+    private void setServerNonce() {
         serverNonce = MyCrypto.getRandomNonce();
     }
 
-    private void setClientNonec(String nonec) throws IllegalArgumentException {
-        clientNonce = nonec;
+    private void setClientNonce(String nonce) throws IllegalArgumentException {
+        clientNonce = nonce;
         if (clientNonce == null || clientNonce.length() < MyCrypto.NONCE_LENGTH)
             throw new IllegalArgumentException("Illegal nonce");
     }
