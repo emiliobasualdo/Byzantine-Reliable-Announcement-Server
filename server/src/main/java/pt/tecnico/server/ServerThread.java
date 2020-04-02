@@ -21,9 +21,11 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Server class to handle client requests
+ */
 public class ServerThread implements Runnable {
-
-    private final ServerInt twitter;
+    private final ServerInt server;
     private final PrivateKey privateKey;
 
     private final Socket clientSocket;
@@ -33,9 +35,15 @@ public class ServerThread implements Runnable {
     private String serverNonce;
     private String clientNonce;
 
-
-    public ServerThread(Twitter twitter, PrivateKey privateKey, Socket clientSocket, BufferedReader in, PrintWriter out) {
-        this.twitter = twitter;
+    /**
+     * @param server       ServerInt object that will handle register/post/read logic
+     * @param privateKey   PrivateKey to sign messages with
+     * @param clientSocket Socket opened with the client
+     * @param in           BufferedReader to read messages from the client
+     * @param out          PrintWriter to write messages to
+     */
+    public ServerThread(ServerInt server, PrivateKey privateKey, Socket clientSocket, BufferedReader in, PrintWriter out) {
+        this.server = server;
         this.privateKey = privateKey;
         this.clientSocket = clientSocket;
         this.in = in;
@@ -46,9 +54,11 @@ public class ServerThread implements Runnable {
     private JSONObject handleRequest(JSONObject joMap) {
         JSONObject resp = new JSONObject();
         try {
-            if (!joMap.has(Parameters.action.name())) throw new IllegalArgumentException("Action can not be null");
+            if (!joMap.has(Parameters.action.name()))
+                throw new IllegalArgumentException("Action can not be null");
             String action = joMap.getString(Parameters.action.name());
-            if (action == null || action.isEmpty()) throw new IllegalArgumentException("Action can not be null");
+            if (action == null || action.isEmpty())
+                throw new IllegalArgumentException("Action can not be null");
             int number;
             String msg, signature, publicKey;
             List<Integer> ann;
@@ -56,18 +66,18 @@ public class ServerThread implements Runnable {
             switch (Action.valueOf(action)) {
                 case REGISTER:
                     publicKey = joMap.getString(Parameters.client_public_key.name());
-                    twitter.register(publicKey);
+                    server.register(publicKey);
                     resp.put(Parameters.data.name(), "Successfully registered");
                     break;
                 case READ:
                     publicKey = joMap.getString(Parameters.board_public_key.name());
                     number = joMap.getInt(Parameters.number.name());
-                    list = twitter.read(publicKey, number);
+                    list = server.read(publicKey, number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case READGENERAL:
                     number = joMap.getInt(Parameters.number.name());
-                    list = twitter.readGeneral(number);
+                    list = server.readGeneral(number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case POST:
@@ -75,7 +85,7 @@ public class ServerThread implements Runnable {
                     signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.post(publicKey, signature, msg, ann);
+                    server.post(publicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
                 case POSTGENERAL:
@@ -83,7 +93,7 @@ public class ServerThread implements Runnable {
                     signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
                     msg = joMap.getString(Parameters.message.name());
                     ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
-                    twitter.postGeneral(publicKey, signature, msg, ann);
+                    server.postGeneral(publicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
                 default:
@@ -102,18 +112,19 @@ public class ServerThread implements Runnable {
         postData.put(Parameters.action.name(), req.getString(Parameters.action.name()));
         String stringSig = req.getString(Parameters.post_signature.name());
         byte[] sig = MyCrypto.decodeB64(stringSig);
-        if (!MyCrypto.verifySignature(sig, postData.toString().getBytes(), publicKey)) {
+        if (!MyCrypto.verifySignature(sig, postData.toString().getBytes(), publicKey))
             throw new IllegalArgumentException("Post signature does not match the post body");
-        }
         return stringSig;
     }
 
     private JSONObject checkAndExtract(String msg) throws IllegalArgumentException, InternalError {
         JSONObject jo;
         try {
-            if (msg == null || msg.length() == 0) throw new IllegalArgumentException("Message seems too short");
+            if (msg == null || msg.length() == 0)
+                throw new IllegalArgumentException("Message seems too short");
             jo = new JSONObject(msg);
-            if (jo.length() == 0) throw new IllegalArgumentException("Message seems too short");
+            if (jo.length() == 0)
+                throw new IllegalArgumentException("Message seems too short");
             byte[] sig = MyCrypto.decodeB64(jo.getString(Parameters.signature.name()));
             jo.remove(Parameters.signature.name());
             // After the signature comes the real clients request, whose params are \n separated
@@ -127,9 +138,8 @@ public class ServerThread implements Runnable {
                 String reqClientNonce = jo.getString(Parameters.client_nonce.name());
                 String reqServerNonce = jo.getString(Parameters.server_nonce.name());
                 // No need to check for null or length as equals does that
-                if (!clientNonce.equals(reqClientNonce) || !serverNonce.equals(reqServerNonce)) {
+                if (!clientNonce.equals(reqClientNonce) || !serverNonce.equals(reqServerNonce))
                     throw new IllegalArgumentException("Illegal nonce");
-                }
             }
         } catch (IllegalArgumentException | BadPaddingException | InvalidKeySpecException | JSONException e) {
             throw new IllegalArgumentException(e.getMessage());

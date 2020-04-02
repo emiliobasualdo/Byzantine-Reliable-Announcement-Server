@@ -2,8 +2,10 @@ package pt.tecnico.model;
 
 import java.util.List;
 
+/**
+ * Server interface, to implement required DPAS methods on the server side
+ */
 public interface ServerInt {
-
     /**
      * Register a user by adding its own board
      *
@@ -22,6 +24,7 @@ public interface ServerInt {
      * @return true if the insert was successful, false otherwise
      * @throws IllegalArgumentException in case we can't find the board (most likely because the provided key is not registered)
      */
+    @SuppressWarnings("UnusedReturnValue")
     boolean post(String key, String signature, String message, List<Integer> announcements) throws IllegalArgumentException;
 
     /**
@@ -34,6 +37,7 @@ public interface ServerInt {
      * @return true if the insert was successful, false otherwise
      * @throws IllegalArgumentException in case we can't find the board
      */
+    @SuppressWarnings("UnusedReturnValue")
     boolean postGeneral(String key, String signature, String message, List<Integer> announcements) throws IllegalArgumentException;
 
     /**

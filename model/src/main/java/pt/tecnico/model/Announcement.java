@@ -3,15 +3,21 @@ package pt.tecnico.model;
 import java.util.List;
 
 /**
- * Announcement class to gather the sender, the message, the list of announcements it refers to, its database id and its signature
+ * Announcement class to gather the sender, the message, the list of announcements it refers to, its signature and its database id
  */
 public class Announcement implements Comparable {
     private final String owner;                     // Base64 encoded client public key
-    private final String message;                   // Content of the announcement, max 255 chars
-    private final List<Integer> announcements;      // List of announcements ids to refer to
-    private final String signature;                 // Base64 encoded announcement signature
-    private Integer id = null;                      // Announcement id if it had been inserted in the db
+    private final String message;                   // Content of the Announcement, max 255 chars
+    private final List<Integer> announcements;      // List of Announcement ids to refer to
+    private final String signature;                 // Base64 encoded Announcement signature
+    private Integer id = null;                      // Announcement id, null if it had not been inserted in the database
 
+    /**
+     * @param user          String corresponding to the Base64 encoded client public key
+     * @param signature     String corresponding to the Base64 encoded announcement signature
+     * @param message       String corresponding to the content of the announcement, max 255 chars
+     * @param announcements List of announcements ids to refer to
+     */
     public Announcement(String user, String signature, String message, List<Integer> announcements) {
         postCheck(message, announcements);
         this.message = message;
@@ -20,13 +26,20 @@ public class Announcement implements Comparable {
         this.signature = signature;
     }
 
+    /**
+     * @param user          String corresponding to the Base64 encoded client public key
+     * @param signature     String corresponding to the Base64 encoded Announcement signature
+     * @param message       String corresponding to the content of the Announcement, max 255 chars
+     * @param announcements List of Announcements ids to refer to
+     * @param id            Integer corresponding to the Announcement id
+     */
     public Announcement(String user, String signature, String message, List<Integer> announcements, Integer id) {
         this(user, signature, message, announcements);
         this.setId(id);
     }
 
     @Override
-    public int compareTo(Object o) {
+    public int compareTo(Object o) {                        // to allow sorting by ids
         Integer compareId = ((Announcement) o).getId();
         return this.id - compareId;
     }

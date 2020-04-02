@@ -6,13 +6,12 @@ import pt.tecnico.model.ServerInt;
 import java.util.ArrayList;
 import java.util.List;
 
-
 /**
  * Twitter base class to abstract the DBMS layer
  */
 public class Twitter implements ServerInt {
-    private final List<Board> boards = new ArrayList<>();
-    private final List<Integer> announcements = new ArrayList<>();
+    private final List<Board> boards = new ArrayList<>();           // List of boards, populated by the Connect class and appended on board registration
+    private final List<Integer> announcements = new ArrayList<>();  // List of announcements ids, populated by the Connect class and appended on announcement post
     private final Connect conn;
 
     public Twitter() {
@@ -49,15 +48,6 @@ public class Twitter implements ServerInt {
             throw new IllegalArgumentException("Number must be positive");
     }
 
-    @Override
-    public void register(String publicKey) throws IllegalArgumentException {
-        if (findBoard(publicKey) != null)
-            throw new IllegalArgumentException("A board with this public key already exists");
-        Board b = new Board(publicKey);
-        if (conn.insertBoard(b))
-            boards.add(b);
-    }
-
     /**
      * Subroutine to post an announcement, meant to be called from post() and postGeneral methods
      *
@@ -76,10 +66,19 @@ public class Twitter implements ServerInt {
         Announcement announcement = new Announcement(key, signature, message, announcements);
         ret = conn.insertAnnouncement(board, announcement); // insert announcement and update its id
         if (ret) {
-            board.post(announcement);
+            board.addAnnouncement(announcement);
             this.announcements.add(announcement.getId());
         }
         return ret;
+    }
+
+    @Override
+    public void register(String publicKey) throws IllegalArgumentException {
+        if (findBoard(publicKey) != null)
+            throw new IllegalArgumentException("A board with this public key already exists");
+        Board b = new Board(publicKey);
+        if (conn.insertBoard(b))
+            boards.add(b);
     }
 
     @Override
@@ -104,7 +103,7 @@ public class Twitter implements ServerInt {
         Board b = findBoard(key);
         if (b == null)
             throw new IllegalArgumentException("No such board registered with this key");
-        return b.get(number);
+        return b.getAnnouncements(number);
     }
 
     @Override
@@ -113,6 +112,6 @@ public class Twitter implements ServerInt {
         Board b = boards.get(0); // the general board is the first one
         if (b == null)
             throw new IllegalArgumentException("No general board registered"); // should never happen, in that case a keypair should have been generated earlier
-        return b.get(number);
+        return b.getAnnouncements(number);
     }
 }

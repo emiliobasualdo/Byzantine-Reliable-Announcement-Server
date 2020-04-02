@@ -10,10 +10,14 @@ import java.util.List;
  * Connect class to bind the DPAS to a local or remote DBMS
  */
 public class Connect {
+    //private static final String DB_DRIVER = "jdbc:mysql://localhost/sqldb?user=sqluser&password=sqluserpw" // MySQL example
     private static final String DB_DRIVER = "jdbc:sqlite:dpas.db";
 
     /**
      * Constructor creating the database, tables, adding the general board if needed, or populating the boards
+     *
+     * @param boards        List of Board that will be populated from the database
+     * @param announcements List of Announcement ids that will be populated from the database
      */
     public Connect(List<Board> boards, List<Integer> announcements) {
         try (Connection conn = this.connect();
@@ -150,7 +154,8 @@ public class Connect {
                 for (Integer relAnnouncement : announcement.getAnnouncements()) {
                     pstmt_rel.setInt(2, relAnnouncement);
                     ret = (!flagUpdatedRetToFalse && (pstmt_rel.executeUpdate() == 1)); // (flagUpdatedRetToFalse ? false : (pstmt_rel.executeUpdate() == 1))
-                    if (!flagUpdatedRetToFalse && !ret) flagUpdatedRetToFalse = true;
+                    if (!flagUpdatedRetToFalse && !ret)
+                        flagUpdatedRetToFalse = true;
                 }
             } else {
                 throw new NullPointerException("Cannot retrieve last inserted announcement");

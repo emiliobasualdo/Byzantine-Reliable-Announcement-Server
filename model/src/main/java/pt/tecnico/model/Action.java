@@ -1,7 +1,7 @@
 package pt.tecnico.model;
 
 /**
- * Different POST json actions available
+ * Different actions available
  */
 @SuppressWarnings("SpellCheckingInspection")
 public enum Action {

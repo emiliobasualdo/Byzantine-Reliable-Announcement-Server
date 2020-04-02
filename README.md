@@ -46,7 +46,7 @@ keytool -genkeypair -alias clientKeyPair -keyalg RSA -keysize 2048 \
   -dname "CN=twitter" -validity 365 -storetype PKCS12 \
   -keystore client_keystore.p12 -storepass pass1234
 ```
-- Cd into the source code
+- Move to the source code directory
 ```shell script
 cd local/path/to/Dependable-Public-Announcement-Server 
 ```
@@ -56,7 +56,7 @@ java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save
 ```
 
 # Run a hacker
-To simulate a hacker you can start a proxy server that can read, drop, edit and duplicate the packages sent between server and client  
+To simulate a hacker you can start a proxy server that can read, drop, edit and duplicate the messages sent between the server and the client  
 1. Start the server on port X
 2. Start the hacker on port Y
 3. Start the client and tell him the server is listening on port Y
@@ -69,7 +69,7 @@ java -jar hacker/target/hacker-1.0-jar-with-dependencies.jar 8001 127.0.0.1 8000
 
 # Run Maven tests
 This runs simple tests we use to develop. For full testing of the server play around with the client.  
-This tests are used to check that the server returns correct or error messages when required.
+These tests are used to check that the server returns correct or error messages when required.
 ```shell script
 mvn test
 ```

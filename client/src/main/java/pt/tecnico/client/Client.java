@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Client class used to communicate with a Dependable Public Announcement Server
+ */
 public class Client {
     private static PublicKey pub;
     private static PrivateKey priv;
@@ -36,6 +39,11 @@ public class Client {
     private String serverNonce;
     private String clientNonce;
 
+    /**
+     * Main entrypoint for client module
+     *
+     * @param args Syntax: client <server-keystore-path> <server-alias> <server-storepass> <server-ip> <server-port> [client-keystore-path] [client-alias] [client-storepass]
+     */
     public static void main(String[] args) {
         // We need the the path of the folder where to save the keys
         if (!(args.length == 5 || args.length == 8))
@@ -65,6 +73,9 @@ public class Client {
         }
     }
 
+    /**
+     * Open a new Socket connection with the server and initializes the buffers
+     */
     private void open() {
         try {
             socket = new Socket(serverIp, serverPort);
@@ -78,12 +89,28 @@ public class Client {
         }
     }
 
+    /**
+     * Close the buffers and the Socket
+     *
+     * @throws IOException in case an an I/O error occurs
+     */
     private void close() throws IOException {
         in.close();
         out.close();
         socket.close();
     }
 
+    /**
+     * Start the selection menu (for interactivity) and parse the user choice
+     *
+     * @throws NoSuchAlgorithmException  in case the specified KEY_ALG does not exist
+     * @throws IllegalBlockSizeException in case the length of msg provided to a block cipher is incorrect (e.g., does not match the block size of the cipher)
+     * @throws BadPaddingException       in case the message sent to the server is null
+     * @throws NoSuchPaddingException    in case transformation contains a padding scheme that is not available
+     * @throws InvalidKeyException       in case the public key is invalid (invalid encoding, wrong length, uninitialized, etc)
+     * @throws IOException               in case an an I/O error occurs
+     * @throws InvalidKeySpecException   in case the given key specification is inappropriate for this key factory to produce a public key
+     */
     private void start() throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
         textIO = TextIoFactory.getTextIO();
         System.out.println("Hello. This is the client for the for the Highly Dependable Announcement Server project.");
@@ -91,7 +118,7 @@ public class Client {
                 .map(Enum::name)
                 .collect(Collectors.toList());
         while (true) {
-            //4open();
+            //open();
             String option = textIO.newStringInputReader()
                     .withNumberedPossibleValues(enumNames)
                     .read("What do you want to do?");
@@ -121,7 +148,8 @@ public class Client {
                     post.put(Parameters.action.name(), board.equals("Personal") ? Action.POST.name() : Action.POSTGENERAL.name());
                     System.out.println("This is the post you are going to verify:");
                     System.out.println(post.toString(2));
-                    if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?")) return;
+                    if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?"))
+                        return;
                     if (MyCrypto.verifySignature(signature, post.toString().getBytes(), pk)) {
                         System.out.println("Correct signature! :) ");
                     } else {
@@ -163,13 +191,18 @@ public class Client {
                 case EXIT:
                     return;
             }
-            if (initCommunication()) {
+            if (initCommunication())
                 method.run();
-            }
             close();
         }
     }
 
+    /**
+     * Initialize the communication with the server by generating a new nonce and sending the first request
+     *
+     * @return true in case of success, false otherwise
+     * @throws IOException in case an an I/O error occurs
+     */
     private boolean initCommunication() throws IOException {
         // generate our nonce
         clientNonce = MyCrypto.getRandomNonce();
@@ -181,24 +214,33 @@ public class Client {
         // prompt user
         System.out.println("Your first request body is:");
         System.out.println(req.toString(2));
-        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?")) return false;
+        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?"))
+            return false;
         // write
         open();
         out.println(req.toString());
         // wait for answer
         JSONObject resp = new JSONObject(in.readLine()); // todo wait max seconds
         serverNonce = resp.getString(Parameters.server_nonce.name());
-        if (!verifySignature(resp)) return false;
+        if (!verifySignature(resp))
+            return false;
         System.out.println("Server response:");
         System.out.println(resp.toString(2));
         return true;
     }
 
+    /**
+     * Checks if the signature of a JSON message is correct
+     *
+     * @param oResp JSONObject to check
+     * @return true if the signature is correct, false otherwise
+     */
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean verifySignature(JSONObject oResp) {
         JSONObject resp = new JSONObject(oResp.toString());
         try {
-            if (resp.length() == 0) throw new IllegalArgumentException("Empty answer");
+            if (resp.length() == 0)
+                throw new IllegalArgumentException("Empty answer");
             byte[] sig = MyCrypto.decodeB64(resp.getString(Parameters.signature.name()));
             resp.remove(Parameters.signature.name());
             // We verify that the message was not altered
@@ -220,6 +262,11 @@ public class Client {
         }
     }
 
+    /**
+     * Build a new JSONObject populated with the client and server nonces, and the client public key
+     *
+     * @return JSONObject containing an empty request
+     */
     private JSONObject newBasicRequest() {
         JSONObject resp = new JSONObject();
         resp.put(Parameters.client_nonce.name(), clientNonce);
@@ -228,6 +275,12 @@ public class Client {
         return resp;
     }
 
+    /**
+     * Compute the digest of a JSONObject message, sign it using the provided private key and encode it to a Base64 String
+     *
+     * @param jo JSONObject corresponding to the message to compute the digest, sign and Base64 encode
+     * @return the signed digest of the message, as a Base64 encoded String
+     */
     private String digestAndSign(JSONObject jo) {
         String sig;
         try {
@@ -239,15 +292,23 @@ public class Client {
         }
     }
 
+    /**
+     * Send the second request
+     *
+     * @param req JSONObject corresponding to the message to send to the server
+     * @return a JSONObject containing the server response
+     */
     @SuppressWarnings("UnusedReturnValue")
     private JSONObject secondRequest(JSONObject req) {
         System.out.println("Your second request body is:");
         System.out.println(req.toString(2));
-        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?")) System.exit(1);
+        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?"))
+            System.exit(1);
         out.println(req.toString());
         try {
             JSONObject resp = new JSONObject(in.readLine());
-            if (!verifySignature(resp)) System.exit(1);
+            if (!verifySignature(resp))
+                System.exit(1);
             System.out.println("Server response:");
             System.out.println(resp.toString(2));
             return resp;
@@ -256,22 +317,44 @@ public class Client {
         }
     }
 
-    private void register() throws IllegalArgumentException {
+    /**
+     * Register the user
+     */
+    private void register() {
         JSONObject req = newBasicRequest();
         req.put(Parameters.action.name(), Action.REGISTER.name());
         digestAndSign(req);
         secondRequest(req);
     }
 
-    private void post(String message, List<Integer> announcements) throws IllegalArgumentException {
+    /**
+     * Wrapper to post an announcement in the specified board
+     *
+     * @param message       String corresponding to the message
+     * @param announcements List of announcements ids to refer to
+     */
+    private void post(String message, List<Integer> announcements) {
         genericPost(message, announcements, Action.POST);
     }
 
-    private void postGeneral(String message, List<Integer> announcements) throws IllegalArgumentException {
+    /**
+     * Wrapper to post an announcement in the general board
+     *
+     * @param message       String corresponding to the message
+     * @param announcements List of announcements ids to refer to
+     */
+    private void postGeneral(String message, List<Integer> announcements) {
         genericPost(message, announcements, Action.POSTGENERAL);
     }
 
-    private void genericPost(String message, List<Integer> announcements, Action action) throws IllegalArgumentException {
+    /**
+     * Code logic to post an announcement in a board, meant to be called by post() or postGeneral() methods
+     *
+     * @param message       String corresponding to the message
+     * @param announcements List of announcements ids to refer to
+     * @param action        Action chosen (POST or POST_GENERAL)
+     */
+    private void genericPost(String message, List<Integer> announcements, Action action) {
         JSONObject req = newBasicRequest();
         JSONObject postData = new JSONObject();
         JSONArray ann = new JSONArray(announcements);
@@ -291,7 +374,13 @@ public class Client {
         secondRequest(req);
     }
 
-    private void read(String key, int number) throws IllegalArgumentException {
+    /**
+     * Read announcements from the specified board
+     *
+     * @param key    Base64 encoded String corresponding to the Board public key
+     * @param number int corresponding to the number of announcements to read (0 for all announcements)
+     */
+    private void read(String key, int number) {
         JSONObject req = newBasicRequest();
         req.put(Parameters.action.name(), Action.READ.name());
         req.put(Parameters.board_public_key.name(), key);
@@ -300,7 +389,12 @@ public class Client {
         secondRequest(req);
     }
 
-    private void readGeneral(int number) throws IllegalArgumentException {
+    /**
+     * Read announcements from the general board
+     *
+     * @param number int corresponding to the number of announcements to read (0 for all announcements)
+     */
+    private void readGeneral(int number) {
         JSONObject req = newBasicRequest();
         req.put(Parameters.action.name(), Action.READGENERAL.name());
         req.put(Parameters.number.name(), number);
@@ -308,6 +402,9 @@ public class Client {
         secondRequest(req);
     }
 
+    /**
+     * Different actions available from the user menu
+     */
     enum Options {
         PRINT_MY_PUBLIC_KEY,
         PRINT_SERVER_PUBLIC_KEY,
