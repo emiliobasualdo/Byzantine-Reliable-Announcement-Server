@@ -1,7 +1,7 @@
 package pt.tecnico.model;
 
 /**
- * Different JSON parameters available to client and server
+ * Different JSON parameters available to the client and the server
  */
 public enum Parameters {
     client_nonce,
@@ -16,6 +16,6 @@ public enum Parameters {
     announcements,
     err_msg,
     status,
-    data;
+    data
 
 }

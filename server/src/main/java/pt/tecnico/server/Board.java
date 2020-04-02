@@ -29,7 +29,7 @@ public class Board {
     public static Board genGeneralBoard() {
         PublicKey board_key = null;
         try {
-            board_key = MyCrypto.generateKeyPair().getPublic(); // TODO: generate keypair for the general board in a better way
+            board_key = MyCrypto.generateKeyPair().getPublic();
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
@@ -44,11 +44,8 @@ public class Board {
         announcements.add(announcement);
     }
 
-    public List<Announcement> getAnnouncements() {
-        return announcements;
-    }
-
     public List<Announcement> get(int number) {
+        //noinspection unchecked
         Collections.sort(announcements); // should already be sorted by id (so, chronological) but we never now...
         if (number == 0) return announcements;
 

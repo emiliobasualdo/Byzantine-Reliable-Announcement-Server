@@ -29,8 +29,7 @@ public class Connect {
             } else {
                 // Tables do not exist
                 createNewTables();
-                Board generalBoard = Board.genGeneralBoard();
-                insertBoard(generalBoard);
+                insertBoard(Board.genGeneralBoard());
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
@@ -99,7 +98,7 @@ public class Connect {
      * @param board Board to be inserted
      * @return true if the insert was successful, false otherwise
      */
-    public boolean insertBoard(Board board) {
+    protected boolean insertBoard(Board board) {
         String sql = "INSERT INTO boards(public_key) VALUES(?)";
         boolean ret;
 
@@ -129,7 +128,7 @@ public class Connect {
      * @param announcement Announcement to be inserted/posted
      * @return true if the insert was successful, false otherwise
      */
-    public boolean insertAnnouncement(Board board, Announcement announcement) {
+    protected boolean insertAnnouncement(Board board, Announcement announcement) {
         boolean ret;
         boolean flagUpdatedRetToFalse = false;
         String sql = "INSERT INTO announcements(board_id, public_key, signature, message) VALUES(?,?,?,?)";
@@ -191,24 +190,24 @@ public class Connect {
                 announcements = new ArrayList<>();
                 pstmt_announcement.setInt(1, rs_boards.getInt("id"));
                 rs_announcement = pstmt_announcement.executeQuery();
-                List<Integer> annoucements_rel;
+                List<Integer> announcements_rel;
 
                 // loop through the result set of announcements
                 while (rs_announcement.next()) {
-                    annoucements_rel = new ArrayList<>();
+                    announcements_rel = new ArrayList<>();
                     pstmt_rel.setInt(1, rs_announcement.getInt("id"));
                     rs_rel = pstmt_rel.executeQuery();
 
                     // loop through the result set of announcements_rel
                     while (rs_rel.next()) {
-                        annoucements_rel.add(rs_rel.getInt("announcement_referring_id"));
+                        announcements_rel.add(rs_rel.getInt("announcement_referring_id"));
                     }
                     rs_rel.close();
 
                     announcements.add(new Announcement(rs_announcement.getString("public_key"),
                             rs_announcement.getString("signature"),
                             rs_announcement.getString("message"),
-                            annoucements_rel,
+                            announcements_rel,
                             rs_announcement.getInt("id")));
                     announcementIds.add(rs_announcement.getInt("id"));
                 }

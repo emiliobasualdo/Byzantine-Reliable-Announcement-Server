@@ -1,17 +1,16 @@
 package pt.tecnico.model;
 
-import java.io.Serializable;
 import java.util.List;
 
 /**
  * Announcement class to gather the sender, the message, the list of announcements it refers to, its database id and its signature
  */
-public class Announcement implements Serializable, Comparable {
-    private String owner;                   // Base64 encoded client public key
-    private String message;                 // Content of the announcement, max 255 chars
-    private List<Integer> announcements;    // List of announcements ids to refer to
-    private Integer id = null;              // Announcement id if it had been inserted in the db
-    private String signature;               // Base64 encoded announcement signature
+public class Announcement implements Comparable {
+    private final String owner;                     // Base64 encoded client public key
+    private final String message;                   // Content of the announcement, max 255 chars
+    private final List<Integer> announcements;      // List of announcements ids to refer to
+    private final String signature;                 // Base64 encoded announcement signature
+    private Integer id = null;                      // Announcement id if it had been inserted in the db
 
     public Announcement(String user, String signature, String message, List<Integer> announcements) {
         postCheck(message, announcements);

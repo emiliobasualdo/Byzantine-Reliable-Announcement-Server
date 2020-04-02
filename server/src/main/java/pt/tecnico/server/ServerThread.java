@@ -42,6 +42,7 @@ public class ServerThread implements Runnable {
         this.out = out;
     }
 
+    @SuppressWarnings("unchecked")
     private JSONObject handleRequest(JSONObject joMap) {
         JSONObject resp = new JSONObject();
         try {
@@ -222,6 +223,7 @@ public class ServerThread implements Runnable {
         clientSocket.close();
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private List jsonArrayToList(JSONArray jsonArray) {
         List resp = new ArrayList();
         jsonArray.forEach(resp::add);

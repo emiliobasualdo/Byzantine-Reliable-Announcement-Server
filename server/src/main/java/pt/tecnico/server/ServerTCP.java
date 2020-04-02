@@ -17,6 +17,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 // https://dzone.com/articles/simple-http-server-in-java
 
 public class ServerTCP {
+    private final int TIMEOUT = 50;
     private final Twitter twitter;
     private final PrivateKey privateKey;
 
@@ -29,7 +30,7 @@ public class ServerTCP {
         try {
             // We need the the path of the folder where to save the keys
             if (args.length != 5)
-                System.out.println("Syntax: server <key-store-path> <alias> <password> <ip> <port>");
+                System.out.println("Syntax: server <server-keystore-path> <server-alias> <server-storepass> <ip> <port>");
             else {
                 // We get the server's private key
                 PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], args[1], args[2]);
@@ -48,9 +49,10 @@ public class ServerTCP {
         ServerSocket serverSocket = new ServerSocket(port, 0, InetAddress.getByName(ip));
         System.out.println("Server up, listening on " + ip + ":" + port + " and waiting for connections");
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+        //noinspection InfiniteLoopStatement
         while (true) {
             Socket clientSocket = serverSocket.accept();
-            clientSocket.setSoTimeout(50 * 1000);
+            clientSocket.setSoTimeout(TIMEOUT * 1000);
             System.out.println("Established connection with client-> " +
                     clientSocket.getInetAddress().toString() + ":" + clientSocket.getPort());
             System.out.println("Creating new thread");

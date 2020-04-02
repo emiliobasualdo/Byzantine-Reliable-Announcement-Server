@@ -1,6 +1,9 @@
 package pt.tecnico.model;
 
-import javax.crypto.*;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.*;
@@ -8,15 +11,17 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.UUID;
 
 // https://www.baeldung.com/java-digital-signature
 public class MyCrypto {
+    public static final int NONCE_LENGTH = UUID.randomUUID().toString().length();
     private static final String DIGEST_ALG = "SHA-512";
     private static final String KEY_ALG = "RSA";
     private static final int KEY_SIZE = 2048;
     private static final String KEY_STORE = "PKCS12";
-    public static final int NONCE_LENGTH = UUID.randomUUID().toString().length();
 
     public static PrivateKey getPrivateKey(String path, String alias, String password) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException, IOException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance(KEY_STORE);

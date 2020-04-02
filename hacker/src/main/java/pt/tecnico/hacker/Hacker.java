@@ -75,12 +75,11 @@ public class Hacker {
         if (in.equals(clientIn)) {
             System.out.println("New message from client arrived:");
             print(CLIENT, jo.toString(2));
-            return jo;
         } else {
             System.out.println("New message from server arrived:");
             print(SERVER, jo.toString(2));
-            return jo;
         }
+        return jo;
     }
 
     private void start(int myPort, String serverIp, int serverPort) throws IOException {

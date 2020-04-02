@@ -23,12 +23,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Client {
-
     private static PublicKey pub;
     private static PrivateKey priv;
     private static PublicKey serverPublicKey;
     private static String serverIp;
     private static int serverPort;
+    private final int TIMEOUT = 50;
     TextIO textIO;
     private Socket socket;
     private PrintWriter out;
@@ -38,17 +38,17 @@ public class Client {
 
     public static void main(String[] args) {
         // We need the the path of the folder where to save the keys
-        if (args.length < 5)
-            System.out.println("Syntax: client <key-store-path> <alias> <password> <server-ip> <server-port> <key-store-path> <alias> <password>");
+        if (!(args.length == 5 || args.length == 8))
+            System.out.println("Syntax: client <server-keystore-path> <server-alias> <server-storepass> <server-ip> <server-port> [client-keystore-path] [client-alias] [client-storepass]");
         else {
             try {
                 // We get the client's keys and server's public key
                 serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
                 // client specific private key
                 if (args.length == 8) {
-                    priv = MyCrypto.getPrivateKey(args[5], args[6],args[7]);
-                    pub = MyCrypto.getPublicKey(args[5], args[6],args[7]);
-                    System.out.println("Reusing public key: " +MyCrypto.publicKeyToB64String(pub).substring(0, 60)+ "...");
+                    priv = MyCrypto.getPrivateKey(args[5], args[6], args[7]);
+                    pub = MyCrypto.getPublicKey(args[5], args[6], args[7]);
+                    System.out.println("Reusing public key: " + MyCrypto.publicKeyToB64String(pub).substring(0, 60) + "...");
                 } else {
                     KeyPair kp = MyCrypto.generateKeyPair();
                     priv = kp.getPrivate();
@@ -68,7 +68,7 @@ public class Client {
     private void open() {
         try {
             socket = new Socket(serverIp, serverPort);
-            socket.setSoTimeout(50 * 1000);
+            socket.setSoTimeout(TIMEOUT * 1000);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             System.out.println("New TCP connection with the server opened on port " + socket.getLocalPort());

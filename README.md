@@ -36,6 +36,7 @@ Pass the path where the `server_keystore` was saved, the key alias, the password
 ```shell script
 java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000
 ```
+
 ##### 4.2 Reuse client
 - Generate the client's key
 ```shell script
@@ -46,7 +47,7 @@ keytool -genkeypair -alias clientKeyPair -keyalg RSA -keysize 2048 \
   -keystore client_keystore.p12 -storepass pass1234
 ```
 - Cd into the source code
-```
+```shell script
 cd local/path/to/Dependable-Public-Announcement-Server 
 ```
 Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port, the path where the `client_keystore` was saved, the key alias and the password
@@ -58,7 +59,7 @@ java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save
 To simulate a hacker you can start a proxy server that can read, drop, edit and duplicate the packages sent between server and client  
 1. Start the server on port X
 2. Start the hacker on port Y
-3. Start the client and tell him the server is at Y
+3. Start the client and tell him the server is listening on port Y
 
 ### Start the hacker
 Pass the port where the hacker will start, the ip and the port the server is listening to
@@ -66,9 +67,9 @@ Pass the port where the hacker will start, the ip and the port the server is lis
 java -jar hacker/target/hacker-1.0-jar-with-dependencies.jar 8001 127.0.0.1 8000
 ```
 
-# Run maven tests
+# Run Maven tests
 This runs simple tests we use to develop. For full testing of the server play around with the client.  
-This tests are use check that the server returns correct or error messages when required.
+This tests are used to check that the server returns correct or error messages when required.
 ```shell script
 mvn test
 ```
