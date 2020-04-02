@@ -38,15 +38,22 @@ public class Client {
 
     public static void main(String[] args) {
         // We need the the path of the folder where to save the keys
-        if (args.length != 5)
-            System.out.println("Syntax: client <key-store-path> <alias> <password> <server-ip> <server-port>");
+        if (args.length < 5)
+            System.out.println("Syntax: client <key-store-path> <alias> <password> <server-ip> <server-port> <key-store-path> <alias> <password>");
         else {
             try {
                 // We get the client's keys and server's public key
-                KeyPair kp = MyCrypto.generateKeyPair();
-                priv = kp.getPrivate();
-                pub = kp.getPublic();
                 serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
+                // client specific private key
+                if (args.length == 8) {
+                    priv = MyCrypto.getPrivateKey(args[5], args[6],args[7]);
+                    pub = MyCrypto.getPublicKey(args[5], args[6],args[7]);
+                    System.out.println("Reusing public key: " +MyCrypto.publicKeyToB64String(pub).substring(0, 60)+ "...");
+                } else {
+                    KeyPair kp = MyCrypto.generateKeyPair();
+                    priv = kp.getPrivate();
+                    pub = kp.getPublic();
+                }
                 // we connect to the server
                 serverIp = args[3];
                 serverPort = Integer.parseInt(args[4]);
@@ -61,7 +68,7 @@ public class Client {
     private void open() {
         try {
             socket = new Socket(serverIp, serverPort);
-            socket.setSoTimeout(30 * 1000);
+            socket.setSoTimeout(50 * 1000);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             System.out.println("New TCP connection with the server opened on port " + socket.getLocalPort());

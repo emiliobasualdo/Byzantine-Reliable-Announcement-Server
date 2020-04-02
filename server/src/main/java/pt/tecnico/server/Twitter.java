@@ -77,7 +77,7 @@ public class Twitter implements ServerInt {
         ret = conn.insertAnnouncement(board, announcement); // insert announcement and update its id
         if (ret) {
             board.post(announcement);
-            announcements.add(announcement.getId());
+            this.announcements.add(announcement.getId());
         }
         return ret;
     }

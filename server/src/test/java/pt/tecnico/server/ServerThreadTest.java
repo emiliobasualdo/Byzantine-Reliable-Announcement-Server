@@ -36,8 +36,6 @@ class ServerThreadTest {
     private static String client_nonce;
     private static String server_nonce;
 
-    private static final String randString = "NLFAG6qzEafasdfasfdasdfRoCiN0\nRdRswckfkcgSZClNamchh7nsMo3Zl6dhKIJyF39Sg2iLyVovJcwTouelyEw0AXyVXjyGZ5ygcqi9n4ZqI0KM7x81Wlqf3PAz2K3ODnU\nnfqMWBQSHuABdMx4yFl3jKSjQ3IECuNadPsof6Irj3Vrd7ePWM2uJLvig8r71MjYhl7geI6RDqO7qXm7JyIOGzRpq9d5yt6JrtVMXcJ0wnIQdUEB8dQQbW3afVufR8STTTaBg4";
-
 
     public static final String ANSI_BLUE = "\u001B[34m";
     public static final String ANSI_RESET = "\u001B[0m";

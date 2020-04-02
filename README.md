@@ -29,9 +29,29 @@ java -jar server/target/server-1.0-jar-with-dependencies.jar /local/path/to/save
 ```
 
 ### 4. Start the client
+The client will generate its own keypair by default, therefore a "new" client is generated on every run of the following jar. 
+If you intend on using the same client more than once. Go to section 4.2
+##### 4.1 New client  
 Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port
 ```shell script
 java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000
+```
+##### 4.2 Reuse client
+- Generate the client's key
+```shell script
+mkdir -p /local/path/to/save/keys
+cd /local/path/to/save/keys
+keytool -genkeypair -alias clientKeyPair -keyalg RSA -keysize 2048 \
+  -dname "CN=twitter" -validity 365 -storetype PKCS12 \
+  -keystore client_keystore.p12 -storepass pass1234
+```
+- Cd into the source code
+```
+cd local/path/to/Dependable-Public-Announcement-Server 
+```
+Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port, the path where the `client_keystore` was saved, the key alias and the password
+```shell script
+java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000 /local/path/to/save/keys/client_keystore.p12 clientKeyPair pass1234
 ```
 
 # Run a hacker
