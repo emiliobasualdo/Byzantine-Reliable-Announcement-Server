@@ -11,14 +11,11 @@ import pt.tecnico.model.Parameters;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -26,82 +23,89 @@ import java.util.stream.Stream;
  * Client class used to communicate with a Dependable Public Announcement Server
  */
 public class Client {
-    private static PublicKey pub;
-    private static PrivateKey priv;
-    private static PublicKey serverPublicKey;
-    private static String serverIp;
-    private static int serverPort;
-    private final int TIMEOUT = 50;
+
+    private ProtocolImp proto;
     TextIO textIO;
-    private Socket socket;
-    private PrintWriter out;
-    private BufferedReader in;
-    private String serverNonce;
-    private String clientNonce;
 
     /**
      * Main entrypoint for client module
      *
-     * @param args Syntax: client <server-keystore-path> <server-alias> <server-storepass> <server-ip> <server-port> [client-keystore-path] [client-alias] [client-storepass]
+     * @param args Syntax: client path/to/settings/file
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
+        if(args.length != 1)
+            throw new IllegalArgumentException("Syntax: client <path/to/settings/file>");
         // We need the the path of the folder where to save the keys
-        if (!(args.length == 5 || args.length == 8))
-            System.out.println("Syntax: client <server-keystore-path> <server-alias> <server-storepass> <server-ip> <server-port> [client-keystore-path] [client-alias] [client-storepass]");
-        else {
-            try {
-                // We get the client's keys and server's public key
-                serverPublicKey = MyCrypto.getPublicKey(args[0], args[1], args[2]);
-                // client specific private key
-                if (args.length == 8) {
-                    priv = MyCrypto.getPrivateKey(args[5], args[6], args[7]);
-                    pub = MyCrypto.getPublicKey(args[5], args[6], args[7]);
-                    System.out.println("Reusing public key: " + MyCrypto.publicKeyToB64String(pub).substring(0, 60) + "...");
-                } else {
-                    KeyPair kp = MyCrypto.generateKeyPair();
-                    priv = kp.getPrivate();
-                    pub = kp.getPublic();
-                }
-                // we connect to the server
-                serverIp = args[3];
-                serverPort = Integer.parseInt(args[4]);
-                Client client = new Client();
-                client.start();
-            } catch (Exception e) {
-                System.err.println(e.getMessage());
-            }
-        }
-    }
+        Map<String, String> opts = parseOptions(args[0]);
+        if (!(opts.size() == 4 || opts.size() == 8))
+            throw new IllegalArgumentException("Some options are missing");
 
-    /**
-     * Open a new Socket connection with the server and initializes the buffers
-     */
-    private void open() {
+        PublicKey pub;
+        PrivateKey priv;
+        int N;
+        int F;
+        Map<PublicKey, ProtocolImp.Server> servers = new HashMap<>();
         try {
-            socket = new Socket(serverIp, serverPort);
-            socket.setSoTimeout(TIMEOUT * 1000);
-            out = new PrintWriter(socket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            System.out.println("New TCP connection with the server opened on port " + socket.getLocalPort());
-        } catch (IOException e) {
+            // we set the parameters
+            N = Integer.parseInt(opts.get("n"));
+            F = Integer.parseInt(opts.get("f"));
+            String str = opts.get("ports");
+            int serversCount = Integer.parseInt(opts.get("server_count"));
+            String keyStore = opts.get("server_keystore_path");
+            String passwd = opts.get("server_store_password");
+            // client specific private key
+            if (opts.size() == 8) {
+                String clientKeyStore = opts.get("client_keystore_path");
+                String clientAlias = opts.get("client_alias");
+                String clientPasswd = opts.get("client_store_pass");
+                priv = MyCrypto.getPrivateKey(clientKeyStore, clientAlias, clientPasswd);
+                pub = MyCrypto.getPublicKey(clientKeyStore, clientAlias, clientPasswd);
+                System.out.println("Reusing public key: " + MyCrypto.publicKeyToB64String(pub).substring(0, 60) + "...");
+            } else {
+                KeyPair kp = MyCrypto.generateKeyPair();
+                priv = kp.getPrivate();
+                pub = kp.getPublic();
+            }
+            // We get the servers's public keys and we parse the ports
+            PublicKey serverPublicKey;
+            str = str.replaceAll("\[|\]", "");
+            String[] list = str.split(",");
+            for (int i = 0; i < serversCount; i++) {
+                serverPublicKey = MyCrypto.getPublicKey(keyStore,"server_"+i, passwd);
+                servers.put(serverPublicKey, new ProtocolImp.Server(Integer.parseInt(list[i])), pub, priv);
+            }
+            // done
+            ProtocolImp p = new ProtocolImp(pub, priv, N, F, servers);
+            Client client = new Client(p);
+            client.start();
+        } catch (Exception e) {
             System.err.println(e.getMessage());
-            System.exit(1);
         }
     }
 
-    /**
-     * Close the buffers and the Socket
-     *
-     * @throws IOException in case an an I/O error occurs
-     */
-    private void close() throws IOException {
-        in.close();
-        out.close();
-        socket.close();
+    private static Map<String, String> parseOptions(String file) throws IOException {
+        Map<String, String> resp = new HashMap<>();
+        // Open the file
+        FileInputStream fstream = new FileInputStream(file);
+        BufferedReader br = new BufferedReader(new InputStreamReader(fstream));
+        String strLine;
+        String[] list;
+        //Read File Line By Line
+        while ((strLine = br.readLine()) != null)   {
+            list = strLine.split("=");
+            resp.put(list[0], list[1]);
+        }
+        //Close the input stream
+        fstream.close();
+        return resp;
+    }
+
+    public Client(ProtocolImp p) {
+        this.proto = p;
     }
 
     /**
-     * Start the selection menu (for interactivity) and parse the user choice
+     * Start the selection menu (for interactivity) and parses the user choice
      *
      * @throws NoSuchAlgorithmException  in case the specified KEY_ALG does not exist
      * @throws IllegalBlockSizeException in case the length of msg provided to a block cipher is incorrect (e.g., does not match the block size of the cipher)
@@ -118,7 +122,6 @@ public class Client {
                 .map(Enum::name)
                 .collect(Collectors.toList());
         while (true) {
-            //open();
             String option = textIO.newStringInputReader()
                     .withNumberedPossibleValues(enumNames)
                     .read("What do you want to do?");
@@ -127,12 +130,10 @@ public class Client {
             };
             switch (Options.valueOf(option)) {
                 case PRINT_MY_PUBLIC_KEY:
-                    System.out.println(pub);
-                    System.out.println(MyCrypto.publicKeyToB64String(pub));
+                    System.out.println(MyCrypto.publicKeyToB64String(proto.pub));
                     continue;
-                case PRINT_SERVER_PUBLIC_KEY:
-                    System.out.println(serverPublicKey);
-                    System.out.println(MyCrypto.publicKeyToB64String(serverPublicKey));
+                case PRINT_SERVERS_PUBLIC_KEY:
+                    proto.printServersPublicKey();
                     continue;
                 case VERIFY_A_POST_SIGNATURE:
                     System.out.println("Copy and paste the following fields");
@@ -157,7 +158,7 @@ public class Client {
                     }
                     continue;
                 case REGISTER:
-                    method = this::register;
+                    method = proto.register;
                     break;
                 case READ:
                     method = () -> {
@@ -191,215 +192,10 @@ public class Client {
                 case EXIT:
                     return;
             }
-            if (initCommunication())
+            if (proto.init())
                 method.run();
-            close();
+            proto.finish();
         }
-    }
-
-    /**
-     * Initialize the communication with the server by generating a new nonce and sending the first request
-     *
-     * @return true in case of success, false otherwise
-     * @throws IOException in case an an I/O error occurs
-     */
-    private boolean initCommunication() throws IOException {
-        // generate our nonce
-        clientNonce = MyCrypto.getRandomNonce();
-        // send the initial package
-        JSONObject req = new JSONObject();
-        req.put(Parameters.client_nonce.name(), clientNonce);
-        req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(pub));
-        digestAndSign(req);
-        // prompt user
-        System.out.println("Your first request body is:");
-        System.out.println(req.toString(2));
-        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?"))
-            return false;
-        // write
-        open();
-        out.println(req.toString());
-        // wait for answer
-        JSONObject resp = new JSONObject(in.readLine()); // todo wait max seconds
-        serverNonce = resp.getString(Parameters.server_nonce.name());
-        if (!verifySignature(resp))
-            return false;
-        System.out.println("Server response:");
-        System.out.println(resp.toString(2));
-        return true;
-    }
-
-    /**
-     * Checks if the signature of a JSON message is correct
-     *
-     * @param oResp JSONObject to check
-     * @return true if the signature is correct, false otherwise
-     */
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean verifySignature(JSONObject oResp) {
-        JSONObject resp = new JSONObject(oResp.toString());
-        try {
-            if (resp.length() == 0)
-                throw new IllegalArgumentException("Empty answer");
-            byte[] sig = MyCrypto.decodeB64(resp.getString(Parameters.signature.name()));
-            resp.remove(Parameters.signature.name());
-            // We verify that the message was not altered
-            if (!MyCrypto.verifySignature(sig, resp.toString().getBytes(), serverPublicKey))
-                throw new IllegalArgumentException("Signature does not match");
-            // If nonces are set then we check their validity
-            String respClientNonce = resp.getString(Parameters.client_nonce.name());
-            String respServerNonce = resp.getString(Parameters.server_nonce.name());
-            // No need to check for null or length as equals does that
-            if (!clientNonce.equals(respClientNonce) || !serverNonce.equals(respServerNonce))
-                throw new IllegalArgumentException("Nonces don't match");
-            System.out.println("Server's signature and nonce are correct");
-            return true;
-        } catch (Exception e) {
-            System.err.println(e.getMessage());
-            System.err.println("Server response:");
-            System.out.println(oResp.toString(2));
-            return false;
-        }
-    }
-
-    /**
-     * Build a new JSONObject populated with the client and server nonces, and the client public key
-     *
-     * @return JSONObject containing an empty request
-     */
-    private JSONObject newBasicRequest() {
-        JSONObject resp = new JSONObject();
-        resp.put(Parameters.client_nonce.name(), clientNonce);
-        resp.put(Parameters.server_nonce.name(), serverNonce);
-        resp.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(pub));
-        return resp;
-    }
-
-    /**
-     * Compute the digest of a JSONObject message, sign it using the provided private key and encode it to a Base64 String
-     *
-     * @param jo JSONObject corresponding to the message to compute the digest, sign and Base64 encode
-     * @return the signed digest of the message, as a Base64 encoded String
-     */
-    private String digestAndSign(JSONObject jo) {
-        String sig;
-        try {
-            sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), priv);
-            jo.put(Parameters.signature.name(), sig);
-            return sig;
-        } catch (NoSuchAlgorithmException | IllegalBlockSizeException | InvalidKeyException | BadPaddingException | NoSuchPaddingException e) {
-            throw new InternalError(e);
-        }
-    }
-
-    /**
-     * Send the second request
-     *
-     * @param req JSONObject corresponding to the message to send to the server
-     * @return a JSONObject containing the server response
-     */
-    @SuppressWarnings("UnusedReturnValue")
-    private JSONObject secondRequest(JSONObject req) {
-        System.out.println("Your second request body is:");
-        System.out.println(req.toString(2));
-        if (!textIO.newBooleanInputReader().withDefaultValue(true).read("Continue?"))
-            System.exit(1);
-        out.println(req.toString());
-        try {
-            JSONObject resp = new JSONObject(in.readLine());
-            if (!verifySignature(resp))
-                System.exit(1);
-            System.out.println("Server response:");
-            System.out.println(resp.toString(2));
-            return resp;
-        } catch (Exception e) {
-            throw new InternalError(e);
-        }
-    }
-
-    /**
-     * Register the user
-     */
-    private void register() {
-        JSONObject req = newBasicRequest();
-        req.put(Parameters.action.name(), Action.REGISTER.name());
-        digestAndSign(req);
-        secondRequest(req);
-    }
-
-    /**
-     * Wrapper to post an announcement in the specified board
-     *
-     * @param message       String corresponding to the message
-     * @param announcements List of announcements ids to refer to
-     */
-    private void post(String message, List<Integer> announcements) {
-        genericPost(message, announcements, Action.POST);
-    }
-
-    /**
-     * Wrapper to post an announcement in the general board
-     *
-     * @param message       String corresponding to the message
-     * @param announcements List of announcements ids to refer to
-     */
-    private void postGeneral(String message, List<Integer> announcements) {
-        genericPost(message, announcements, Action.POSTGENERAL);
-    }
-
-    /**
-     * Code logic to post an announcement in a board, meant to be called by post() or postGeneral() methods
-     *
-     * @param message       String corresponding to the message
-     * @param announcements List of announcements ids to refer to
-     * @param action        Action chosen (POST or POST_GENERAL)
-     */
-    private void genericPost(String message, List<Integer> announcements, Action action) {
-        JSONObject req = newBasicRequest();
-        JSONObject postData = new JSONObject();
-        JSONArray ann = new JSONArray(announcements);
-        // we want to generate the signature of the post first
-        postData.put(Parameters.message.name(), message);
-        postData.put(Parameters.announcements.name(), ann);
-        postData.put(Parameters.action.name(), action);
-        String postSig = digestAndSign(postData);
-        // now we add the stuff the second package
-        req.put(Parameters.message.name(), message);
-        req.put(Parameters.announcements.name(), ann);
-        req.put(Parameters.action.name(), action);
-        // we add the post signature
-        req.put(Parameters.post_signature.name(), postSig);
-        // we sign and send
-        digestAndSign(req);
-        secondRequest(req);
-    }
-
-    /**
-     * Read announcements from the specified board
-     *
-     * @param key    Base64 encoded String corresponding to the Board public key
-     * @param number int corresponding to the number of announcements to read (0 for all announcements)
-     */
-    private void read(String key, int number) {
-        JSONObject req = newBasicRequest();
-        req.put(Parameters.action.name(), Action.READ.name());
-        req.put(Parameters.board_public_key.name(), key);
-        req.put(Parameters.number.name(), number);
-        digestAndSign(req);
-        secondRequest(req);
-    }
-
-    /**
-     * Read announcements from the general board
-     *
-     * @param number int corresponding to the number of announcements to read (0 for all announcements)
-     */
-    private void readGeneral(int number) {
-        JSONObject req = newBasicRequest();
-        req.put(Parameters.action.name(), Action.READGENERAL.name());
-        req.put(Parameters.number.name(), number);
-        digestAndSign(req);
-        secondRequest(req);
     }
 
     /**
@@ -407,7 +203,7 @@ public class Client {
      */
     enum Options {
         PRINT_MY_PUBLIC_KEY,
-        PRINT_SERVER_PUBLIC_KEY,
+        PRINT_SERVERS_PUBLIC_KEY,
         VERIFY_A_POST_SIGNATURE,
         REGISTER,
         READ,

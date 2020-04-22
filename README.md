@@ -7,19 +7,18 @@
 Determine a local path where to save the server keys.  
 Ex: `/local/path/to/save/keys`
 
-### 1. Generate server keystore
-```shell script
-mkdir -p /local/path/to/save/keys
-cd /local/path/to/save/keys
-keytool -genkeypair -alias serverKeyPair -keyalg RSA -keysize 2048 \
-  -dname "CN=twitter" -validity 365 -storetype PKCS12 \
-  -keystore server_keystore.p12 -storepass pass1234
-```
-
-### 2. Build
+### 1. Build
 ```shell script
 cd local/path/to/Dependable-Public-Announcement-Server 
 mvn clean install
+```
+
+### 2. Generate servers keystore
+We generate each server's keys by 1) creating a folder were we place the keystore for all servers
+and 2) creating a key for each one by passing the folder path and the number of servers to our bash helper 
+```shell script
+mkdir -p /local/path/to/save/keys
+sh serverKeysGenerator.sh /local/path/to/save/keys/server_keystore.p12 numberOfServers pass1234
 ```
 
 ### 3. Start the server

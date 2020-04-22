@@ -1,0 +1,10 @@
+server_keystore_path=
+server_count=
+server_store_password=
+ports=[port1, ..., portN]
+n=10
+f=5
+#=optionalParams=
+client_keystore_path=
+client_alias=
+client_store_pass=paswd1234
