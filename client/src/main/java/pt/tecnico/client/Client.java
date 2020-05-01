@@ -14,6 +14,7 @@ import javax.crypto.NoSuchPaddingException;
 import java.io.*;
 import java.net.Socket;
 import java.security.*;
+import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,17 +28,19 @@ public class Client {
     private ProtocolImp proto;
     TextIO textIO;
 
+    private PublicKey clientPub;
+
     /**
      * Main entrypoint for client module
      *
      * @param args Syntax: client path/to/settings/file
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, UnrecoverableKeyException, CertificateException, NoSuchAlgorithmException, KeyStoreException, InvalidKeySpecException, InvalidKeyException, BadPaddingException, NoSuchPaddingException, IllegalBlockSizeException {
         if(args.length != 1)
             throw new IllegalArgumentException("Syntax: client <path/to/settings/file>");
         // We need the the path of the folder where to save the keys
         Map<String, String> opts = parseOptions(args[0]);
-        if (!(opts.size() == 4 || opts.size() == 8))
+        if (!(opts.size() == 5 || opts.size() == 8))
             throw new IllegalArgumentException("Some options are missing");
 
         PublicKey pub;
@@ -45,42 +48,40 @@ public class Client {
         int N;
         int F;
         Map<PublicKey, ProtocolImp.Server> servers = new HashMap<>();
-        try {
-            // we set the parameters
-            N = Integer.parseInt(opts.get("n"));
-            F = Integer.parseInt(opts.get("f"));
-            String str = opts.get("ports");
-            int serversCount = Integer.parseInt(opts.get("server_count"));
-            String keyStore = opts.get("server_keystore_path");
-            String passwd = opts.get("server_store_password");
-            // client specific private key
-            if (opts.size() == 8) {
-                String clientKeyStore = opts.get("client_keystore_path");
-                String clientAlias = opts.get("client_alias");
-                String clientPasswd = opts.get("client_store_pass");
-                priv = MyCrypto.getPrivateKey(clientKeyStore, clientAlias, clientPasswd);
-                pub = MyCrypto.getPublicKey(clientKeyStore, clientAlias, clientPasswd);
-                System.out.println("Reusing public key: " + MyCrypto.publicKeyToB64String(pub).substring(0, 60) + "...");
-            } else {
-                KeyPair kp = MyCrypto.generateKeyPair();
-                priv = kp.getPrivate();
-                pub = kp.getPublic();
-            }
-            // We get the servers's public keys and we parse the ports
-            PublicKey serverPublicKey;
-            str = str.replaceAll("\[|\]", "");
-            String[] list = str.split(",");
-            for (int i = 0; i < serversCount; i++) {
-                serverPublicKey = MyCrypto.getPublicKey(keyStore,"server_"+i, passwd);
-                servers.put(serverPublicKey, new ProtocolImp.Server(Integer.parseInt(list[i])), pub, priv);
-            }
-            // done
-            ProtocolImp p = new ProtocolImp(pub, priv, N, F, servers);
-            Client client = new Client(p);
-            client.start();
-        } catch (Exception e) {
-            System.err.println(e.getMessage());
+        // we set the parameters
+        F = Integer.parseInt(opts.get("f"));
+        String ports = opts.get("ports");
+        String serverkeyStore = opts.get("server_keystore_path");
+        String serverKeyPasswd = opts.get("server_store_password");
+        // client specific private key
+        if (opts.size() == 9) {
+            String clientKeyStore = opts.get("client_keystore_path");
+            String clientAlias = opts.get("client_alias");
+            String clientPasswd = opts.get("client_store_pass");
+            priv = MyCrypto.getPrivateKey(clientKeyStore, clientAlias, clientPasswd);
+            pub = MyCrypto.getPublicKey(clientKeyStore, clientAlias, clientPasswd);
+            System.out.println("Reusing public key: " + MyCrypto.publicKeyToB64String(pub).substring(0, 60) + "...");
+        } else {
+            KeyPair kp = MyCrypto.generateKeyPair();
+            priv = kp.getPrivate();
+            pub = kp.getPublic();
+            System.out.println("Created new public key: " + MyCrypto.publicKeyToB64String(pub).substring(0, 60) + "...");
         }
+        // We get the servers's public keys a
+        // nd we parse the ports
+        PublicKey serverPublicKey;
+        ports = ports.replace(" ", "");
+        ports = ports.substring(1, ports.length()-1);
+        String[] list = ports.split(",");
+        N = list.length;
+        for (int i = 0; i < N; i++) {
+            serverPublicKey = MyCrypto.getPublicKey(serverkeyStore,"server_"+i, serverKeyPasswd);
+            servers.put(serverPublicKey, new ProtocolImp.Server(Integer.parseInt(list[i]), serverPublicKey, pub, priv));
+        }
+        // done
+        ProtocolImp p = new ProtocolImp(N, F, servers, priv);
+        Client client = new Client(p, pub);
+        client.start();
     }
 
     private static Map<String, String> parseOptions(String file) throws IOException {
@@ -91,7 +92,8 @@ public class Client {
         String strLine;
         String[] list;
         //Read File Line By Line
-        while ((strLine = br.readLine()) != null)   {
+        while ((strLine = br.readLine()) != null) {
+            if (strLine.startsWith("#")) continue;
             list = strLine.split("=");
             resp.put(list[0], list[1]);
         }
@@ -100,8 +102,9 @@ public class Client {
         return resp;
     }
 
-    public Client(ProtocolImp p) {
+    public Client(ProtocolImp p, PublicKey pub) {
         this.proto = p;
+        this.clientPub = pub;
     }
 
     /**
@@ -130,7 +133,7 @@ public class Client {
             };
             switch (Options.valueOf(option)) {
                 case PRINT_MY_PUBLIC_KEY:
-                    System.out.println(MyCrypto.publicKeyToB64String(proto.pub));
+                    System.out.println(MyCrypto.publicKeyToB64String(clientPub));
                     continue;
                 case PRINT_SERVERS_PUBLIC_KEY:
                     proto.printServersPublicKey();
@@ -158,19 +161,19 @@ public class Client {
                     }
                     continue;
                 case REGISTER:
-                    method = proto.register;
+                    method = () -> proto.register();
                     break;
                 case READ:
                     method = () -> {
                         String who = textIO.newStringInputReader().read("Who do you want to read from?");
                         Integer num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
-                        read(who, num);
+                        proto.read(who, num);
                     };
                     break;
                 case READ_GENERAL:
                     method = () -> {
                         Integer num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
-                        readGeneral(num);
+                        proto.readGeneral(num);
                     };
                     break;
                 case POST:
@@ -178,7 +181,7 @@ public class Client {
                         String msg = textIO.newStringInputReader().read("Type the announcement message");
                         System.out.println("Type the announcements's ids you want to make reference separated by commas:");
                         List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
-                        post(msg, list);
+                        proto.post(msg, list);
                     };
                     break;
                 case POST_GENERAL:
@@ -186,7 +189,7 @@ public class Client {
                         String msg = textIO.newStringInputReader().read("Type the announcement message");
                         System.out.println("Type the announcements's ids you want to make reference to separated by commas:");
                         List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
-                        postGeneral(msg, list);
+                        proto.postGeneral(msg, list);
                     };
                     break;
                 case EXIT:
@@ -194,7 +197,7 @@ public class Client {
             }
             if (proto.init())
                 method.run();
-            proto.finish();
+            proto.close();
         }
     }
 

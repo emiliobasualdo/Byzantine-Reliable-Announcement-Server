@@ -1,10 +1,9 @@
-server_keystore_path=
-server_count=
-server_store_password=
-ports=[port1, ..., portN]
-n=10
-f=5
-#=optionalParams=
-client_keystore_path=
-client_alias=
-client_store_pass=paswd1234
+server_keystore_path=/Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/server_keystore.p12
+server_count=2
+server_store_password=pass1234
+ports=[8000, 8001]
+f=0
+#optionalParams
+#client_keystore_path=/Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/client_keystore.p12
+#client_alias=clientKeyPair
+#client_store_pass=pass1234

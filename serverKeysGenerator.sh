@@ -6,7 +6,6 @@ do
  keytool -genkeypair \
  -alias $alias \
  -keyalg RSA -keysize 2048 \
-  -dname "CN=pt.ulisboa.tecnico.hds" \
   -validity 365 \
   -storetype PKCS12 \
   -keystore "$1" \

@@ -13,16 +13,17 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.*;
-
+// todo testar con más de un servidor
 public class ProtocolImp {
-    PublicKey pub;
-    private PrivateKey priv;
+
+    private PrivateKey clientPrivateKey;
     private int N;
     private int F;
     private Map<PublicKey, Server> servers;
@@ -30,12 +31,11 @@ public class ProtocolImp {
     private static final String SERVER_IP = "127.0.0.1";
     private static final int TIMEOUT = 50 * 1000;
 
-    public ProtocolImp(PublicKey pub, PrivateKey priv, int n, int f, Map<PublicKey, Server> servers) {
-        this.pub = pub;
-        this.priv = priv;
+    public ProtocolImp(int n, int f, Map<PublicKey, Server> servers, PrivateKey clientPrivateKey) {
         this.N = n;
         this.F = f;
         this.servers = servers;
+        this.clientPrivateKey = clientPrivateKey;
     }
 
     /**
@@ -51,7 +51,7 @@ public class ProtocolImp {
             }
         }
         if (ports.size() < N-F){
-            System.err.println("Less than N-F servers are available. We will cancel an close all connections");
+            System.err.println("Less than N-F servers are available");
             close();
             System.exit(1);
         }
@@ -77,7 +77,7 @@ public class ProtocolImp {
         // we open the sockets for each server
         open();
         // we send the firs empty object to ehach server
-        servers.values().forEach(s -> s.send(new JSONObject()));
+        serversSend(new JSONObject());
         // wait for answers
         try {
             readResponses();
@@ -91,26 +91,38 @@ public class ProtocolImp {
         return true;
     }
 
+    private void serversSend(JSONObject jsonObject) {
+        servers.values().forEach(s -> s.send(jsonObject));
+    }
+
     /**
      * Requests each Server object to read from its server and verifies the signatures
      * @throws IllegalArgumentException if the amount of illegal signatures is greater than F
      */
     private void readResponses() throws BadResponseException {
         int badResponses = 0;
+        int badSignatures = 0;
         JSONObject resp;
         for (Server s : servers.values()) {
             try {
                 resp = s.read();
-                System.out.printf("Server %d%n response: %s", s.port, resp.toString(2));
-            } catch (IOException | BadSignatureException e) {
+                System.out.printf("Server %d response: %s\n", s.port, resp.toString(2));
+            } catch (IOException | BadResponseException e) {
                 badResponses++;
-                System.err.printf("Server %d%n produced exception: %s", s.port, e.getMessage());
+                System.err.printf("Server %d produced exception: %s\n", s.port, e.getMessage());
+                s.close();
+            } catch (BadSignatureException e) {
+                badSignatures++;
+                System.err.printf("Server %d produced exception: %s\n", s.port, e.getMessage());
                 s.close();
             }
         }
-        System.out.printf("%d%n out of %d%n servers answered with bad signature", badResponses, N);
-        if (badResponses > F) {
-            throw new BadResponseException(String.format("The amount of servers with bad signatures(%d%n) is lower than F(%d%n)", badResponses, F));
+        if (badResponses > 0)
+            System.out.printf("%d out of %d servers answered with bad response\n", badResponses, N);
+        if (badSignatures > 0)
+            System.out.printf("%d out of %d servers answered with bad signature\n", badSignatures, N);
+        if (badResponses + badSignatures > F) {
+            throw new BadResponseException(String.format("The amount of illegal responses(%d) is bigger than F(%d)\n", badResponses +badSignatures, F));
         }
     }
 
@@ -123,29 +135,46 @@ public class ProtocolImp {
     @SuppressWarnings("UnusedReturnValue")
     private JSONObject secondRequest(JSONObject req) {
         // for each open connection we send the message
-        servers.values().forEach(s -> s.send(req));
+        serversSend(req);
         // we wait for the response
         try {
             readResponses();
         } catch (BadResponseException e) {
-            System.err.println(//todo que hacemo aca loco". We will cancel an close all connections");
+            //todo que hacemos acá loco
+            System.err.println("Bad responses: "+ e.getMessage());
+            System.err.println("We will cancel an close all connections");
             close();
             System.exit(1);
         }
         // we must verify the responses
-        List<JSONObject> verifiedResponses = verifyResponses(rawResponses);
-        if(verifiedResponses == null)
-            throw new IllegalStateException(String.format("We were not able to determine a correct answer out of the %d answers received", rawResponses.size()));
+        JSONObject resp = null;
+        try {
+            resp = verifyResponses();
+        } catch (BadResponseException e) {
+            //todo qué hacemos acá loco
+            System.err.println("Bad responses: "+ e.getMessage());
+            System.err.println("We will cancel an close all connections");
+            close();
+            System.exit(1);
+        }
+        return resp;
+    }
+
+    private JSONObject verifyResponses() throws BadResponseException{
+        return null;
     }
 
     /**
      * Checks if the signature of a JSON message is correct
      *
+     * @param serverPublicKey
      * @param oResp JSONObject to check
+     * @param clientNonce
+     * @param serverNonce
      * @return true if the signature is correct, false otherwise
      */
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private static boolean verifySignature(JSONObject oResp) {
+    private static boolean verifySignature(JSONObject oResp, String clientNonce, String serverNonce, PublicKey serverPublicKey) {
         JSONObject resp = new JSONObject(oResp.toString());
         try {
             if (resp.length() == 0)
@@ -159,14 +188,14 @@ public class ProtocolImp {
             String respClientNonce = resp.getString(Parameters.client_nonce.name());
             String respServerNonce = resp.getString(Parameters.server_nonce.name());
             // No need to check for null or length as equals does that
-            if (!clientNonce.equals(respClientNonce) || !serverNonce.equals(respServerNonce))
+            if (!clientNonce.equals(respClientNonce) || (serverNonce != null && !serverNonce.equals(respServerNonce)))
                 throw new IllegalArgumentException("Nonces don't match");
             System.out.println("Server's signature and nonce are correct");
             return true;
         } catch (Exception e) {
             System.err.println(e.getMessage());
             System.err.println("Server response:");
-            System.out.println(oResp.toString(2));
+            System.err.println(oResp.toString(2));
             return false;
         }
     }
@@ -199,7 +228,6 @@ public class ProtocolImp {
     void register() {
         JSONObject req = new JSONObject();
         req.put(Parameters.action.name(), Action.REGISTER.name());
-        sign(req, priv);
         secondRequest(req);
     }
 
@@ -238,7 +266,7 @@ public class ProtocolImp {
         postData.put(Parameters.message.name(), message);
         postData.put(Parameters.announcements.name(), ann);
         postData.put(Parameters.action.name(), action);
-        String postSig = sign(postData, priv);
+        String postSig = sign(postData, clientPrivateKey);
         // now we add the stuff the second package
         req.put(Parameters.message.name(), message);
         req.put(Parameters.announcements.name(), ann);
@@ -246,7 +274,6 @@ public class ProtocolImp {
         // we add the post signature
         req.put(Parameters.post_signature.name(), postSig);
         // we sign and send
-        sign(req, priv);
         secondRequest(req);
     }
 
@@ -261,7 +288,6 @@ public class ProtocolImp {
         req.put(Parameters.action.name(), Action.READ.name());
         req.put(Parameters.board_public_key.name(), key);
         req.put(Parameters.number.name(), number);
-        sign(req, priv);
         secondRequest(req);
     }
 
@@ -274,13 +300,13 @@ public class ProtocolImp {
         JSONObject req = new JSONObject();
         req.put(Parameters.action.name(), Action.READGENERAL.name());
         req.put(Parameters.number.name(), number);
-        sign(req, priv);
         secondRequest(req);
     }
 
     static class Server {
-        private final PublicKey pub;
-        private final PrivateKey priv;
+        private final PublicKey serverPublicKey;
+        private final PublicKey clientPublicKey;
+        private final PrivateKey clientPrivateKey;
         int port;
         String clientNonce;
         String serverNonce;
@@ -291,10 +317,11 @@ public class ProtocolImp {
 
         JSONObject lastResponse;
 
-        public Server(int port, PublicKey pub, PrivateKey priv) {
+        public Server(int port, PublicKey serverPublicKey, PublicKey clientPublicKey, PrivateKey clientPrivateKey) {
             this.port = port;
-            this.pub = pub;
-            this.priv = priv;
+            this.serverPublicKey = serverPublicKey;
+            this.clientPublicKey = clientPublicKey;
+            this.clientPrivateKey = clientPrivateKey;
         }
 
         public void close() {
@@ -311,37 +338,50 @@ public class ProtocolImp {
                 out = null;
                 socket = null;
                 clientNonce = null;
+                serverNonce = null;
+                isChannelOpen = false;
             }
         }
 
         public void send(JSONObject req) {
+                req = new JSONObject(req.toString());
             if (isChannelOpen) {
                 // We add the nonce and pub, sign each request and send it
                 req.put(Parameters.client_nonce.name(), clientNonce);
-                req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(pub));
-                sign(req, priv);
+                if (serverNonce != null)
+                    req.put(Parameters.server_nonce.name(), serverNonce);
+                req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+                sign(req, clientPrivateKey);
                 out.println(req.toString());
             }
         }
 
-        public JSONObject read() throws IOException, BadSignatureException {
+        public JSONObject read() throws IOException, BadSignatureException, BadResponseException {
             if (isChannelOpen) {
                 lastResponse = new JSONObject(in.readLine());
-                if (!verifySignature(lastResponse)) {
-                    throw new BadSignatureException(String.format("Server %d%n has a bad signature", port));
+                if (!verifySignature(lastResponse, clientNonce, serverNonce, serverPublicKey)) {
+                    throw new BadSignatureException("Bad signature");
                 }
+            }
+            if (lastResponse == null){
+                throw new BadResponseException("Response is null");
             }
             return lastResponse;
         }
 
         public int open() throws IOException {
-            this.socket = new Socket(SERVER_IP, port);
-            this.socket.setSoTimeout(TIMEOUT);
-            this.out = new PrintWriter(socket.getOutputStream(), true);
-            this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            this.clientNonce = MyCrypto.getRandomNonce();
-            this.isChannelOpen = true;
-            return socket.getLocalPort();
+            try {
+                this.socket = new Socket(SERVER_IP, port);
+                this.socket.setSoTimeout(TIMEOUT);
+                this.out = new PrintWriter(socket.getOutputStream(), true);
+                this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                this.clientNonce = MyCrypto.getRandomNonce();
+                this.isChannelOpen = true;
+                return socket.getLocalPort();
+            } catch (ConnectException e) {
+                this.isChannelOpen = false;
+                throw e;
+            }
         }
 
         public void setServerNonce() {

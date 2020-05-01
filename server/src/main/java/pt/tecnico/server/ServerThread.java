@@ -169,11 +169,14 @@ public class ServerThread implements Runnable {
     public void run() {
         try {
             receive(in.readLine());
+            if (clientSocket.isClosed()) throw new IOException("Client closed the connection");
             receive(in.readLine());
         } catch (SocketTimeoutException e) {
             System.err.println("Timeout reached");
-        } catch (IOException | IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
             throw new InternalError(e);
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
         }
     }
 
