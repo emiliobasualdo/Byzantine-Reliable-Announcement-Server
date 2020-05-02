@@ -14,17 +14,18 @@ mvn clean install
 ```
 
 ### 2. Generate servers keystore
-We generate each server's keys by 1) creating a folder were we place the keystore for all servers
-and 2) creating a key for each one by passing the folder path and the number of servers to our bash helper 
+We generate each server's keys by:
+1. creating a folder were we place the keystore for all servers
+2. creating a key for each one by passing the folder path and the number of servers to our bash helper 
 ```shell script
 mkdir -p /local/path/to/save/keys
-sh serverKeysGenerator.sh /local/path/to/save/keys/server_keystore.p12 numberOfServers pass1234
+./serverKeysGenerator.sh /local/path/to/save/keys/server_keystore.p12 numberOfServers pass1234
 ```
 
 ### 3. Start the server
 Pass the path where the `server_keystore` was saved, the key alias, the password, the ip and the port the server will listen to
 ```shell script
-java -jar server/target/server-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000
+java -jar server/target/server-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyAlias pass1234 127.0.0.1 8000
 ```
 
 ### 4. Start the client
@@ -33,7 +34,7 @@ If you intend on using the same client more than once. Go to section 4.2
 ##### 4.1 New client  
 Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port
 ```shell script
-java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000
+java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyAlias pass1234 127.0.0.1 8000
 ```
 
 ##### 4.2 Reuse client
@@ -41,7 +42,7 @@ java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save
 ```shell script
 mkdir -p /local/path/to/save/keys
 cd /local/path/to/save/keys
-keytool -genkeypair -alias clientKeyPair -keyalg RSA -keysize 2048 \
+keytool -genkeypair -alias clientKeyAlias -keyalg RSA -keysize 2048 \
   -dname "CN=twitter" -validity 365 -storetype PKCS12 \
   -keystore client_keystore.p12 -storepass pass1234
 ```
@@ -51,7 +52,7 @@ cd local/path/to/Dependable-Public-Announcement-Server
 ```
 Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port, the path where the `client_keystore` was saved, the key alias and the password
 ```shell script
-java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyPair pass1234 127.0.0.1 8000 /local/path/to/save/keys/client_keystore.p12 clientKeyPair pass1234
+java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyAlias pass1234 127.0.0.1 8000 /local/path/to/save/keys/client_keystore.p12 clientKeyAlias pass1234
 ```
 
 # Run a hacker

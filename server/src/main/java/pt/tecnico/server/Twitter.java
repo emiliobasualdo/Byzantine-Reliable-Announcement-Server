@@ -14,8 +14,8 @@ public class Twitter implements ServerInt {
     private final List<Integer> announcements = new ArrayList<>();  // List of announcements ids, populated by the Connect class and appended on announcement post
     private final Connect conn;
 
-    public Twitter() {
-        conn = new Connect(this.boards, this.announcements); //init the database connection
+    public Twitter(String serverAlias) {
+        conn = new Connect(serverAlias, this.boards, this.announcements); //init the database connection
     }
 
     /**
@@ -60,7 +60,7 @@ public class Twitter implements ServerInt {
      */
     private boolean genericPost(String key, String signature, String message, List<Integer> announcements, Board board) {
         boolean ret;
-        if(message.length() == 0 || message.length() > 255)
+        if (message.length() == 0 || message.length() > 255)
             throw new IllegalArgumentException("The message can only contain between 1 and 255 characters");
         if (!announcementExists(announcements))
             throw new IllegalArgumentException("One or more referring announcements specified do not exist");

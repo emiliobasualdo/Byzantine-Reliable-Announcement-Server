@@ -48,7 +48,7 @@ public class ServerTCP {
                 PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], args[1], args[2]);
                 if (privateKey == null) throw new IllegalArgumentException("Private key is null");
                 // We start the server
-                Twitter twitter = new Twitter();
+                Twitter twitter = new Twitter(args[1]);
                 ServerTCP server = new ServerTCP(twitter, privateKey);
                 server.start(args[3], Integer.parseInt(args[4]));
             }

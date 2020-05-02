@@ -11,7 +11,7 @@ import java.util.List;
  */
 public class Connect {
     //private static final String DB_DRIVER = "jdbc:mysql://localhost/sqldb?user=sqluser&password=sqluserpw" // MySQL example
-    private static final String DB_DRIVER = "jdbc:sqlite:dpas.db";
+    private final String DB_DRIVER;
 
     /**
      * Constructor creating the database, tables, adding the general board if needed, or populating the boards
@@ -19,7 +19,8 @@ public class Connect {
      * @param boards        List of Board that will be populated from the database
      * @param announcements List of Announcement ids that will be populated from the database
      */
-    public Connect(List<Board> boards, List<Integer> announcements) {
+    public Connect(String serverAlias, List<Board> boards, List<Integer> announcements) {
+        DB_DRIVER = "jdbc:sqlite:" + serverAlias + ".db";
         try (Connection conn = this.connect();
              ResultSet tableBoards = conn.getMetaData()
                      .getTables(null, null, "boards", null);

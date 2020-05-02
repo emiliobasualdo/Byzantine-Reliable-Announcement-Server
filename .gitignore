@@ -125,4 +125,4 @@ out
 .idea/
 *.iml
 **/*.iml
-dpas.db
+*.db
