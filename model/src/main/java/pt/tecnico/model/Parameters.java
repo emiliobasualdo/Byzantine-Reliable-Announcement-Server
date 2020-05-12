@@ -17,5 +17,6 @@ public enum Parameters {
     err_msg,
     status,
     data,
+    broadcast,
     body
 }

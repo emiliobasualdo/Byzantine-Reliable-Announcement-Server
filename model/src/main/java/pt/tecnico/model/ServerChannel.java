@@ -105,7 +105,7 @@ public class ServerChannel {
         return resp;
     }
 
-    private JSONObject read() throws IOException, BadSignatureException, BadResponseException {
+    public JSONObject read() throws IOException, BadSignatureException, BadResponseException {
         JSONObject resp = new JSONObject(in.readLine());
         if (resp.length() == 0){
             throw new BadResponseException("Response is null");
