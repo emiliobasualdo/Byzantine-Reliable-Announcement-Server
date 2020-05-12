@@ -7,16 +7,9 @@ import pt.tecnico.model.*;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.ConnectException;
-import java.net.Socket;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.util.*;
 // todo testar con más de un servidor
 public class ProtocolImp {
@@ -24,101 +17,17 @@ public class ProtocolImp {
     private PrivateKey clientPrivateKey;
     private int N;
     private int F;
-    private Map<PublicKey, Server> servers;
+    private List<ServerChannel> servers;
 
-    public ProtocolImp(int n, int f, Map<PublicKey, Server> servers, PrivateKey clientPrivateKey) {
+    public ProtocolImp(int n, int f, List<ServerChannel> servers, PrivateKey clientPrivateKey) {
         this.N = n;
         this.F = f;
         this.servers = servers;
         this.clientPrivateKey = clientPrivateKey;
     }
 
-    /**
-     * Open a new Socket connection with the server and initializes the buffers
-     */
-    private void open() {
-        List<Integer> ports = new ArrayList<>();
-        for (Server s : servers.values()) {
-            try {
-                ports.add(s.open());
-            } catch (IOException e) {
-                System.out.println(e.getMessage());
-            }
-        }
-        if (ports.size() < N-F){
-            System.err.println("Less than N-F servers are available");
-            close();
-            System.exit(1);
-        }
-        System.out.println("New TCP connections with all servers were opened on client ports: " + ports.toString());
-
-    }
-
-    /**
-     * Close the buffers and the Socket
-     *
-     */
-    public void close() {
-        System.out.println("Closing all connections");
-        servers.values().forEach(Server::close);
-    }
-
-    /**
-     * Initialize the communication with each server by generating a new nonce and sending the first request
-     *
-     * @return true in case of success, false otherwise
-     */
-    public boolean init() {
-        // we open the sockets for each server
-        open();
-        // we send the firs empty object to ehach server
-        serversSend(new JSONObject());
-        // wait for answers
-        try {
-            readResponses();
-        } catch (BadResponseException e) {
-            System.out.println(e.getMessage());
-            close();
-            return false;
-        }
-        // if signatures pass we set the nonces
-        servers.values().forEach(Server::setServerNonce);
-        return true;
-    }
-
-    private void serversSend(JSONObject jsonObject) {
-        servers.values().forEach(s -> s.send(jsonObject));
-    }
-
-    /**
-     * Requests each Server object to read from its server and verifies the signatures
-     * @throws IllegalArgumentException if the amount of illegal signatures is greater than F
-     */
-    private void readResponses() throws BadResponseException {
-        int badResponses = 0;
-        int badSignatures = 0;
-        JSONObject resp;
-        for (Server s : servers.values()) {
-            try {
-                resp = s.read();
-                System.out.printf("Server %d response: %s\n", s.port, resp.toString(2));
-            } catch (IOException | BadResponseException e) {
-                badResponses++;
-                System.err.printf("Server %d produced exception: %s\n", s.port, e.getMessage());
-                s.close();
-            } catch (BadSignatureException e) {
-                badSignatures++;
-                System.err.printf("Server %d produced exception: %s\n", s.port, e.getMessage());
-                s.close();
-            }
-        }
-        if (badResponses > 0)
-            System.out.printf("%d out of %d servers answered with bad response\n", badResponses, N);
-        if (badSignatures > 0)
-            System.out.printf("%d out of %d servers answered with bad signature\n", badSignatures, N);
-        if (badResponses + badSignatures > F) {
-            throw new BadResponseException(String.format("The amount of illegal responses(%d) is bigger than F(%d)\n", badResponses +badSignatures, F));
-        }
+    private JSONObject serversSend(JSONObject jsonObject) {
+        return new BRBroadcast(servers).broadcast(jsonObject);
     }
 
     /**
@@ -130,29 +39,7 @@ public class ProtocolImp {
     @SuppressWarnings("UnusedReturnValue")
     private JSONObject secondRequest(JSONObject req) {
         // for each open connection we send the message
-        serversSend(req);
-        // we wait for the response
-        try {
-            readResponses();
-        } catch (BadResponseException e) {
-            //todo que hacemos acá loco
-            System.err.println("Bad responses: "+ e.getMessage());
-            System.err.println("We will cancel an close all connections");
-            close();
-            System.exit(1);
-        }
-        // we must verify the responses
-        JSONObject resp = null;
-        try {
-            resp = verifyResponses();
-        } catch (BadResponseException e) {
-            //todo qué hacemos acá loco
-            System.err.println("Bad responses: "+ e.getMessage());
-            System.err.println("We will cancel an close all connections");
-            close();
-            System.exit(1);
-        }
-        return resp;
+        return serversSend(req);
     }
 
     private JSONObject verifyResponses() throws BadResponseException{
@@ -160,7 +47,7 @@ public class ProtocolImp {
     }
 
     public void printServersPublicKey() {
-        servers.keySet().forEach(s -> System.out.println(MyCrypto.publicKeyToB64String(s)));
+        servers.forEach(s -> System.out.println(MyCrypto.publicKeyToB64String(s.serverPublicKey)));
     }
 
     /**

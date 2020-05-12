@@ -16,24 +16,20 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
-public class Server {
-    private final PublicKey serverPublicKey;
+public class ServerChannel {
+    public final PublicKey serverPublicKey;
     private final PublicKey clientPublicKey;
     private final PrivateKey clientPrivateKey;
     public int port;
     String clientNonce;
-    String serverNonce;
     Socket socket;
     PrintWriter out;
     BufferedReader in;
-    boolean isChannelOpen = false;
 
     private static final String SERVER_IP = "127.0.0.1";
     private static final int TIMEOUT = 50 * 1000;
 
-    JSONObject lastResponse;
-
-    public Server(int port, PublicKey serverPublicKey, PublicKey clientPublicKey, PrivateKey clientPrivateKey) {
+    public ServerChannel(int port, PublicKey serverPublicKey, PublicKey clientPublicKey, PrivateKey clientPrivateKey) {
         this.port = port;
         this.serverPublicKey = serverPublicKey;
         this.clientPublicKey = clientPublicKey;
@@ -50,7 +46,7 @@ public class Server {
         }
     }
 
-    private static boolean verifySignature(JSONObject oResp, String clientNonce, String serverNonce, PublicKey serverPublicKey) {
+    private static boolean verifySignature(JSONObject oResp, String clientNonce, PublicKey serverPublicKey) {
         JSONObject resp = new JSONObject(oResp.toString());
         try {
             if (resp.length() == 0)
@@ -64,7 +60,7 @@ public class Server {
             String respClientNonce = resp.getString(Parameters.client_nonce.name());
             String respServerNonce = resp.getString(Parameters.server_nonce.name());
             // No need to check for null or length as equals does that
-            if (!clientNonce.equals(respClientNonce) || (serverNonce != null && !serverNonce.equals(respServerNonce)))
+            if (!clientNonce.equals(respClientNonce))
                 throw new IllegalArgumentException("Nonces don't match");
             System.out.println("Server's signature and nonce are correct");
             return true;
@@ -76,13 +72,11 @@ public class Server {
         }
     }
 
-    public void close() {
+    private void close() {
         try {
-            if (isChannelOpen) {
-                in.close();
-                out.close();
-                socket.close();
-            }
+            in.close();
+            out.close();
+            socket.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
@@ -90,54 +84,44 @@ public class Server {
             out = null;
             socket = null;
             clientNonce = null;
-            serverNonce = null;
-            isChannelOpen = false;
         }
     }
 
-    public void send(JSONObject req) {
-        req = new JSONObject(req.toString());
-        if (isChannelOpen) {
-            // We add the nonce and pub, sign each request and send it
-            req.put(Parameters.client_nonce.name(), clientNonce);
-            if (serverNonce != null)
-                req.put(Parameters.server_nonce.name(), serverNonce);
-            req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
-            sign(req, clientPrivateKey);
-            out.println(req.toString());
-        }
+    public JSONObject send(JSONObject body) throws IOException, BadResponseException, BadSignatureException {
+        // first we open the socket
+        open();
+        // we prepare to send the message
+        body = new JSONObject(body.toString());
+        JSONObject req = new JSONObject();
+        req.put(Parameters.body.name(), body);
+        // We add the nonce and pub, sign each request and send it
+        req.put(Parameters.client_nonce.name(), clientNonce);
+        req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
+        sign(req, clientPrivateKey);
+        out.println(req.toString());
+        // once sent we wait for an answer from the server
+        JSONObject resp = read();
+        close();
+        return resp;
     }
 
-    public JSONObject read() throws IOException, BadSignatureException, BadResponseException {
-        if (isChannelOpen) {
-            lastResponse = new JSONObject(in.readLine());
-            if (!verifySignature(lastResponse, clientNonce, serverNonce, serverPublicKey)) {
-                throw new BadSignatureException("Bad signature");
-            }
-        }
-        if (lastResponse == null){
+    private JSONObject read() throws IOException, BadSignatureException, BadResponseException {
+        JSONObject resp = new JSONObject(in.readLine());
+        if (resp.length() == 0){
             throw new BadResponseException("Response is null");
         }
-        return lastResponse;
-    }
-
-    public int open() throws IOException {
-        try {
-            this.socket = new Socket(SERVER_IP, port);
-            this.socket.setSoTimeout(TIMEOUT);
-            this.out = new PrintWriter(socket.getOutputStream(), true);
-            this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            this.clientNonce = MyCrypto.getRandomNonce();
-            this.isChannelOpen = true;
-            return socket.getLocalPort();
-        } catch (ConnectException e) {
-            this.isChannelOpen = false;
-            throw e;
+        if (!verifySignature(resp, clientNonce, serverPublicKey)) {
+            throw new BadSignatureException("Bad signature");
         }
+        return resp;
     }
 
-    public void setServerNonce() {
-        if (isChannelOpen)
-            this.serverNonce = this.lastResponse.getString(Parameters.server_nonce.name());
+    private void open() throws IOException {
+        this.socket = new Socket(SERVER_IP, port);
+        this.socket.setSoTimeout(TIMEOUT);
+        this.out = new PrintWriter(socket.getOutputStream(), true);
+        this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        this.clientNonce = MyCrypto.getRandomNonce();
+        socket.getLocalPort();
     }
 }

@@ -2,7 +2,7 @@ server_keystore_path=/Users/pilo/development/ist/hds/Dependable-Public-Announcem
 server_count=2
 server_store_password=pass1234
 ports=[8000, 8001]
-f=0
+f=1
 #optionalParams
 #client_keystore_path=/Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/keys/client_keystore.p12
 #client_alias=clientKeyPair

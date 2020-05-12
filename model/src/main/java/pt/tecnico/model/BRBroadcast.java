@@ -4,8 +4,8 @@ import org.json.JSONObject;
 
 import java.util.List;
 
-public class BRBrodcast {
-    private final List<Server> servers;
+public class BRBroadcast {
+    private final List<ServerChannel> servers;
     // todo Each instance of this class should broadcast only ONE message or listen to ONE message
     // example 1:
     // brb = new BRBrodcast(listOfServers);
@@ -15,12 +15,12 @@ public class BRBrodcast {
     // brb = new BRBrodcast(listOfServers);
     // brb.listen()
 
-    public BRBrodcast(List<Server> servers) {
+    public BRBroadcast(List<ServerChannel> servers) {
         this.servers = servers;
     }
 
-    public void brodcast(JSONObject msg) {
-
+    public JSONObject broadcast(JSONObject msg) {
+        return msg;
     }
 
     public JSONObject listen() {

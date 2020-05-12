@@ -50,13 +50,27 @@ public class ServerThread implements Runnable {
         this.out = out;
     }
 
+    @Override
+    public void run() {
+        try {
+            receive(in.readLine());
+            if (clientSocket.isClosed()) throw new IOException("Client closed the connection");
+            receive(in.readLine());
+        } catch (SocketTimeoutException e) {
+            System.err.println("Timeout reached");
+        } catch (IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new InternalError(e);
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private JSONObject handleRequest(JSONObject joMap) {
         JSONObject resp = new JSONObject();
         try {
-            if (!joMap.has(Parameters.action.name()))
-                throw new IllegalArgumentException("Action can not be null");
-            String action = joMap.getString(Parameters.action.name());
+            JSONObject body = joMap.getJSONObject(Parameters.body.name());
+            String action = body.getString(Parameters.action.name());
             if (action == null || action.isEmpty())
                 throw new IllegalArgumentException("Action can not be null");
             int number;
@@ -70,29 +84,29 @@ public class ServerThread implements Runnable {
                     resp.put(Parameters.data.name(), "Successfully registered");
                     break;
                 case READ:
-                    publicKey = joMap.getString(Parameters.board_public_key.name());
-                    number = joMap.getInt(Parameters.number.name());
+                    publicKey = body.getString(Parameters.board_public_key.name());
+                    number = body.getInt(Parameters.number.name());
                     list = server.read(publicKey, number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case READGENERAL:
-                    number = joMap.getInt(Parameters.number.name());
+                    number = body.getInt(Parameters.number.name());
                     list = server.readGeneral(number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case POST:
                     publicKey = joMap.getString(Parameters.client_public_key.name());
-                    signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
-                    msg = joMap.getString(Parameters.message.name());
-                    ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
+                    signature = checkPostSignature(body, MyCrypto.publicKeyFromB64String(publicKey));
+                    msg = body.getString(Parameters.message.name());
+                    ann = (List<Integer>) jsonArrayToList(body.getJSONArray(Parameters.announcements.name()));
                     server.post(publicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
                 case POSTGENERAL:
                     publicKey = joMap.getString(Parameters.client_public_key.name());
-                    signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(publicKey));
-                    msg = joMap.getString(Parameters.message.name());
-                    ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
+                    signature = checkPostSignature(body, MyCrypto.publicKeyFromB64String(publicKey));
+                    msg = body.getString(Parameters.message.name());
+                    ann = (List<Integer>) jsonArrayToList(body.getJSONArray(Parameters.announcements.name()));
                     server.postGeneral(publicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
@@ -105,19 +119,19 @@ public class ServerThread implements Runnable {
         return resp;
     }
 
-    private String checkPostSignature(JSONObject req, PublicKey publicKey) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+    private String checkPostSignature(JSONObject body, PublicKey publicKey) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
         JSONObject postData = new JSONObject();
-        postData.put(Parameters.message.name(), req.getString(Parameters.message.name()));
-        postData.put(Parameters.announcements.name(), req.getJSONArray(Parameters.announcements.name()));
-        postData.put(Parameters.action.name(), req.getString(Parameters.action.name()));
-        String stringSig = req.getString(Parameters.post_signature.name());
+        postData.put(Parameters.message.name(), body.getString(Parameters.message.name()));
+        postData.put(Parameters.announcements.name(), body.getJSONArray(Parameters.announcements.name()));
+        postData.put(Parameters.action.name(), body.getString(Parameters.action.name()));
+        String stringSig = body.getString(Parameters.post_signature.name());
         byte[] sig = MyCrypto.decodeB64(stringSig);
         if (!MyCrypto.verifySignature(sig, postData.toString().getBytes(), publicKey))
             throw new IllegalArgumentException("Post signature does not match the post body");
         return stringSig;
     }
 
-    private JSONObject checkAndExtract(String msg) throws IllegalArgumentException, InternalError {
+    private JSONObject check(String msg) throws IllegalArgumentException, InternalError {
         JSONObject jo;
         try {
             if (msg == null || msg.length() == 0)
@@ -165,27 +179,12 @@ public class ServerThread implements Runnable {
         }
     }
 
-    @Override
-    public void run() {
-        try {
-            receive(in.readLine());
-            if (clientSocket.isClosed()) throw new IOException("Client closed the connection");
-            receive(in.readLine());
-        } catch (SocketTimeoutException e) {
-            System.err.println("Timeout reached");
-        } catch (IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new InternalError(e);
-        } catch (IOException e) {
-            System.err.println(e.getMessage());
-        }
-    }
-
     JSONObject receive(String msg) throws IllegalBlockSizeException, NoSuchPaddingException, BadPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         JSONObject resp;
         boolean close;
         try {
             // extract the client's nonce and public key and check signature
-            JSONObject packet = checkAndExtract(msg);
+            JSONObject packet = check(msg);
             System.out.println("Client message:" + packet.toString(2));
             if (clientNonce == null) { // first packet of the protocol
                 // we set the client's nonce and create the server's (our) nonce

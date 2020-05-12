@@ -16,5 +16,6 @@ public enum Parameters {
     announcements,
     err_msg,
     status,
-    data
+    data,
+    body
 }

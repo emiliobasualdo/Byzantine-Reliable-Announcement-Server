@@ -254,8 +254,8 @@ class ServerThreadTest {
         System.out.println("Server's answer:");
         System.out.println(resp.toString(2));
         // ASSERT
-        assertEquals(resp.getString(Parameters.status.name()), Status.CLIENT_ERROR.name());
-        assertEquals(resp.getString(Parameters.err_msg.name()), "Post signature does not match the post body");
+        assertEquals( Status.CLIENT_ERROR.name(), resp.getString(Parameters.status.name()));
+        assertEquals("Post signature does not match the post body", resp.getString(Parameters.err_msg.name()));
     }
 
     @Test
