@@ -7,6 +7,7 @@ import pt.tecnico.model.*;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import java.io.IOException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -26,8 +27,42 @@ public class ProtocolImp {
         this.clientPrivateKey = clientPrivateKey;
     }
 
-    private JSONObject serversSend(JSONObject jsonObject) {
-        return new BRBroadcast(servers).broadcast(jsonObject);
+    private JSONObject broadCast(JSONObject jsonObject) throws BadResponseException {
+        Map<Integer, Integer> bodyCount = new HashMap<>();
+        Map<Integer, JSONObject> bodies = new HashMap<>();
+        servers.forEach(s -> {
+            JSONObject resp;
+            int hash;
+            try {
+                resp = s.send(jsonObject);
+                hash = resp.getJSONObject(Parameters.body.name()).hashCode();
+            } catch (IOException | BadResponseException | BadSignatureException e) {
+                System.out.printf("Error sending to server %d \n", s.port);
+                return;
+            }
+            // we add 1 to the count
+            int count = 0;
+            if (bodyCount.containsKey(hash)) {
+                count = bodyCount.get(hash) + 1;
+            }
+            bodyCount.put(hash, count);
+            // we save the message
+            bodies.put(hash, resp);
+        });
+        // we find the response with the highest count
+        int highestHash = 0;
+        int highestCount = -1;
+        for (Integer hash : bodyCount.keySet()) {
+            int count = bodyCount.get(hash);
+            if (count > highestCount) {
+                highestCount = count;
+                highestHash = hash;
+            }
+        }
+        if ( N-highestCount > F ) {
+            throw new BadResponseException("More than F servers differed in their response.");
+        }
+        return bodies.get(highestHash);
     }
 
     /**
@@ -37,13 +72,9 @@ public class ProtocolImp {
      * @return a JSONObject containing the server response
      */
     @SuppressWarnings("UnusedReturnValue")
-    private JSONObject secondRequest(JSONObject req) {
+    private JSONObject secondRequest(JSONObject req) throws BadResponseException {
         // for each open connection we send the message
-        return serversSend(req);
-    }
-
-    private JSONObject verifyResponses() throws BadResponseException{
-        return null;
+        return broadCast(req);
     }
 
     public void printServersPublicKey() {
@@ -53,7 +84,7 @@ public class ProtocolImp {
     /**
      * Register the user
      */
-    void register() {
+    void register() throws BadResponseException {
         JSONObject req = new JSONObject();
         req.put(Parameters.action.name(), Action.REGISTER.name());
         secondRequest(req);
@@ -65,7 +96,7 @@ public class ProtocolImp {
      * @param message       String corresponding to the message
      * @param announcements List of announcements ids to refer to
      */
-    void post(String message, List<Integer> announcements) {
+    void post(String message, List<Integer> announcements) throws BadResponseException {
         genericPost(message, announcements, Action.POST);
     }
 
@@ -75,7 +106,7 @@ public class ProtocolImp {
      * @param message       String corresponding to the message
      * @param announcements List of announcements ids to refer to
      */
-    void postGeneral(String message, List<Integer> announcements) {
+    void postGeneral(String message, List<Integer> announcements) throws BadResponseException {
         genericPost(message, announcements, Action.POSTGENERAL);
     }
 
@@ -86,7 +117,7 @@ public class ProtocolImp {
      * @param announcements List of announcements ids to refer to
      * @param action        Action chosen (POST or POST_GENERAL)
      */
-    private void genericPost(String message, List<Integer> announcements, Action action) {
+    private void genericPost(String message, List<Integer> announcements, Action action) throws BadResponseException {
         JSONObject req = new JSONObject();
         JSONObject postData = new JSONObject();
         JSONArray ann = new JSONArray(announcements);
@@ -116,7 +147,7 @@ public class ProtocolImp {
      * @param key    Base64 encoded String corresponding to the Board public key
      * @param number int corresponding to the number of announcements to read (0 for all announcements)
      */
-    void read(String key, int number) {
+    void read(String key, int number) throws BadResponseException {
         JSONObject req = new JSONObject();
         req.put(Parameters.action.name(), Action.READ.name());
         req.put(Parameters.board_public_key.name(), key);
@@ -129,7 +160,7 @@ public class ProtocolImp {
      *
      * @param number int corresponding to the number of announcements to read (0 for all announcements)
      */
-    void readGeneral(int number) {
+    void readGeneral(int number) throws BadResponseException {
         JSONObject req = new JSONObject();
         req.put(Parameters.action.name(), Action.READGENERAL.name());
         req.put(Parameters.number.name(), number);
