@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import pt.tecnico.model.Action;
 import pt.tecnico.model.MyCrypto;
 import pt.tecnico.model.Parameters;
+import pt.tecnico.model.Server;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -47,7 +48,7 @@ public class Client {
         PrivateKey priv;
         int N;
         int F;
-        Map<PublicKey, ProtocolImp.Server> servers = new HashMap<>();
+        Map<PublicKey, Server> servers = new HashMap<>();
         // we set the parameters
         F = Integer.parseInt(opts.get("f"));
         String ports = opts.get("ports");
@@ -76,7 +77,7 @@ public class Client {
         N = list.length;
         for (int i = 0; i < N; i++) {
             serverPublicKey = MyCrypto.getPublicKey(serverkeyStore,"server_"+i, serverKeyPasswd);
-            servers.put(serverPublicKey, new ProtocolImp.Server(Integer.parseInt(list[i]), serverPublicKey, pub, priv));
+            servers.put(serverPublicKey, new Server(Integer.parseInt(list[i]), serverPublicKey, pub, priv));
         }
         // done
         ProtocolImp p = new ProtocolImp(N, F, servers, priv);

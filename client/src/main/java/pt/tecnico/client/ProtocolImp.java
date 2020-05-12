@@ -2,9 +2,7 @@ package pt.tecnico.client;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import pt.tecnico.model.Action;
-import pt.tecnico.model.MyCrypto;
-import pt.tecnico.model.Parameters;
+import pt.tecnico.model.*;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -27,9 +25,6 @@ public class ProtocolImp {
     private int N;
     private int F;
     private Map<PublicKey, Server> servers;
-
-    private static final String SERVER_IP = "127.0.0.1";
-    private static final int TIMEOUT = 50 * 1000;
 
     public ProtocolImp(int n, int f, Map<PublicKey, Server> servers, PrivateKey clientPrivateKey) {
         this.N = n;
@@ -164,60 +159,6 @@ public class ProtocolImp {
         return null;
     }
 
-    /**
-     * Checks if the signature of a JSON message is correct
-     *
-     * @param serverPublicKey
-     * @param oResp JSONObject to check
-     * @param clientNonce
-     * @param serverNonce
-     * @return true if the signature is correct, false otherwise
-     */
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private static boolean verifySignature(JSONObject oResp, String clientNonce, String serverNonce, PublicKey serverPublicKey) {
-        JSONObject resp = new JSONObject(oResp.toString());
-        try {
-            if (resp.length() == 0)
-                throw new IllegalArgumentException("Empty answer");
-            byte[] sig = MyCrypto.decodeB64(resp.getString(Parameters.signature.name()));
-            resp.remove(Parameters.signature.name());
-            // We verify that the message was not altered
-            if (!MyCrypto.verifySignature(sig, resp.toString().getBytes(), serverPublicKey))
-                throw new IllegalArgumentException("Signature does not match");
-            // If nonces are set then we check their validity
-            String respClientNonce = resp.getString(Parameters.client_nonce.name());
-            String respServerNonce = resp.getString(Parameters.server_nonce.name());
-            // No need to check for null or length as equals does that
-            if (!clientNonce.equals(respClientNonce) || (serverNonce != null && !serverNonce.equals(respServerNonce)))
-                throw new IllegalArgumentException("Nonces don't match");
-            System.out.println("Server's signature and nonce are correct");
-            return true;
-        } catch (Exception e) {
-            System.err.println(e.getMessage());
-            System.err.println("Server response:");
-            System.err.println(oResp.toString(2));
-            return false;
-        }
-    }
-
-    /**
-     * Compute the digest of a JSONObject message, sign it using the provided private key and encode it to a Base64 String
-     *
-     * @param jo JSONObject corresponding to the message to compute the digest, sign and Base64 encode
-     * @param priv
-     * @return the signed digest of the message, as a Base64 encoded String
-     */
-    private static String sign(JSONObject jo, PrivateKey priv) {
-        String sig;
-        try {
-            sig = MyCrypto.digestAndSignToB64(jo.toString().getBytes(), priv);
-            jo.put(Parameters.signature.name(), sig);
-            return sig;
-        } catch (NoSuchAlgorithmException | IllegalBlockSizeException | InvalidKeyException | BadPaddingException | NoSuchPaddingException e) {
-            throw new InternalError(e);
-        }
-    }
-
     public void printServersPublicKey() {
         servers.keySet().forEach(s -> System.out.println(MyCrypto.publicKeyToB64String(s)));
     }
@@ -266,7 +207,12 @@ public class ProtocolImp {
         postData.put(Parameters.message.name(), message);
         postData.put(Parameters.announcements.name(), ann);
         postData.put(Parameters.action.name(), action);
-        String postSig = sign(postData, clientPrivateKey);
+        String postSig = null;
+        try {
+            postSig = MyCrypto.digestAndSignToB64(postData.toString().getBytes(), clientPrivateKey);
+        } catch (NoSuchAlgorithmException | IllegalBlockSizeException | InvalidKeyException | BadPaddingException | NoSuchPaddingException e) {
+            throw new InternalError(e);
+        }
         // now we add the stuff the second package
         req.put(Parameters.message.name(), message);
         req.put(Parameters.announcements.name(), ann);
@@ -301,104 +247,5 @@ public class ProtocolImp {
         req.put(Parameters.action.name(), Action.READGENERAL.name());
         req.put(Parameters.number.name(), number);
         secondRequest(req);
-    }
-
-    static class Server {
-        private final PublicKey serverPublicKey;
-        private final PublicKey clientPublicKey;
-        private final PrivateKey clientPrivateKey;
-        int port;
-        String clientNonce;
-        String serverNonce;
-        Socket socket;
-        PrintWriter out;
-        BufferedReader in;
-        boolean isChannelOpen = false;
-
-        JSONObject lastResponse;
-
-        public Server(int port, PublicKey serverPublicKey, PublicKey clientPublicKey, PrivateKey clientPrivateKey) {
-            this.port = port;
-            this.serverPublicKey = serverPublicKey;
-            this.clientPublicKey = clientPublicKey;
-            this.clientPrivateKey = clientPrivateKey;
-        }
-
-        public void close() {
-            try {
-                if (isChannelOpen) {
-                    in.close();
-                    out.close();
-                    socket.close();
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } finally {
-                in = null;
-                out = null;
-                socket = null;
-                clientNonce = null;
-                serverNonce = null;
-                isChannelOpen = false;
-            }
-        }
-
-        public void send(JSONObject req) {
-                req = new JSONObject(req.toString());
-            if (isChannelOpen) {
-                // We add the nonce and pub, sign each request and send it
-                req.put(Parameters.client_nonce.name(), clientNonce);
-                if (serverNonce != null)
-                    req.put(Parameters.server_nonce.name(), serverNonce);
-                req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
-                sign(req, clientPrivateKey);
-                out.println(req.toString());
-            }
-        }
-
-        public JSONObject read() throws IOException, BadSignatureException, BadResponseException {
-            if (isChannelOpen) {
-                lastResponse = new JSONObject(in.readLine());
-                if (!verifySignature(lastResponse, clientNonce, serverNonce, serverPublicKey)) {
-                    throw new BadSignatureException("Bad signature");
-                }
-            }
-            if (lastResponse == null){
-                throw new BadResponseException("Response is null");
-            }
-            return lastResponse;
-        }
-
-        public int open() throws IOException {
-            try {
-                this.socket = new Socket(SERVER_IP, port);
-                this.socket.setSoTimeout(TIMEOUT);
-                this.out = new PrintWriter(socket.getOutputStream(), true);
-                this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                this.clientNonce = MyCrypto.getRandomNonce();
-                this.isChannelOpen = true;
-                return socket.getLocalPort();
-            } catch (ConnectException e) {
-                this.isChannelOpen = false;
-                throw e;
-            }
-        }
-
-        public void setServerNonce() {
-            if (isChannelOpen)
-                this.serverNonce = this.lastResponse.getString(Parameters.server_nonce.name());
-        }
-    }
-
-    private static class BadSignatureException extends Exception {
-        public BadSignatureException(String message) {
-            super(message);
-        }
-    }
-
-    private static class BadResponseException extends Exception {
-        public BadResponseException(String message) {
-            super(message);
-        }
     }
 }
