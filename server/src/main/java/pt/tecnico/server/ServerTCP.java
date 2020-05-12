@@ -1,16 +1,20 @@
 package pt.tecnico.server;
 
 import pt.tecnico.model.MyCrypto;
+import pt.tecnico.model.ServerChannel;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -20,18 +24,9 @@ import java.util.concurrent.ThreadPoolExecutor;
  * Server class wrapper to setup a new TCP ServerSocket
  */
 public class ServerTCP {
+    private static final String IP =  "127.0.0.1";
     private final int TIMEOUT = 50;
-    private final Twitter twitter;
-    private final PrivateKey privateKey;
 
-    /**
-     * @param twitter    Twitter object that will handle register/post/read logic
-     * @param privateKey PrivateKey to sign messages with
-     */
-    private ServerTCP(Twitter twitter, PrivateKey privateKey) {
-        this.twitter = twitter;
-        this.privateKey = privateKey;
-    }
 
     /**
      * Main entrypoint for server module
@@ -41,45 +36,86 @@ public class ServerTCP {
     public static void main(String[] args) {
         try {
             // We need the the path of the folder where to save the keys
-            if (args.length != 5)
-                System.out.println("Syntax: server <server-keystore-path> <server-alias> <server-storepass> <ip> <port>");
-            else {
-                // We get the server's private key
-                PrivateKey privateKey = MyCrypto.getPrivateKey(args[0], args[1], args[2]);
-                if (privateKey == null) throw new IllegalArgumentException("Private key is null");
-                // We start the server
-                Twitter twitter = new Twitter(args[1]);
-                ServerTCP server = new ServerTCP(twitter, privateKey);
-                server.start(args[3], Integer.parseInt(args[4]));
+            if(args.length != 3)
+                throw new IllegalArgumentException("Syntax: client <path/to/settings/file>");
+            // We need the the path of the folder where to save the keys
+            Map<String, String> opts = parseOptions(args[0]);
+            if (!(opts.size() == 5 || opts.size() == 8))
+                throw new IllegalArgumentException("Some options are missing");
+
+            PublicKey pub;
+            PrivateKey priv;
+            // we set the parameters
+            String ports = opts.get("ports");
+            String serverkeyStore = opts.get("server_keystore_path");
+            String serverKeyPasswd = opts.get("server_store_password");
+            String serverNumber = args[1];
+            int port = Integer.parseInt(args[2]);
+            String serverAlias = "server_"+serverNumber;
+            // server private key
+            priv = MyCrypto.getPrivateKey(serverkeyStore, serverAlias, serverKeyPasswd);
+            pub = MyCrypto.getPublicKey(serverkeyStore, serverAlias, serverKeyPasswd);
+            if (priv == null || pub == null) throw new IllegalArgumentException("Private/Public keys are null");
+
+            // We get the servers's public keys a
+            // nd we parse the ports
+            PublicKey serverPublicKey;
+            ports = ports.replace(" ", "");
+            ports = ports.substring(1, ports.length()-1);
+            String[] list = ports.split(",");
+            List<ServerChannel> servers = new ArrayList<>();
+            List<Integer> portsAux = new ArrayList<>();
+            for (int i = 0; i < list.length; i++) {
+                if (i == Integer.parseInt(serverNumber)) continue;
+                serverPublicKey = MyCrypto.getPublicKey(serverkeyStore,"server_"+i, serverKeyPasswd);
+                int portAux = Integer.parseInt(list[i]);
+                portsAux.add(portAux);
+                servers.add(new ServerChannel(portAux, serverPublicKey, pub, priv));
             }
+
+            // We start the server
+            Twitter twitter = new Twitter(serverAlias);
+            ServerTCP server = new ServerTCP();
+            server.start(port, twitter, priv, servers, portsAux);
         } catch (Exception e) {
             System.err.println("Server exception: " + e.toString());
             e.printStackTrace();
         }
     }
 
-    /**
-     * Initializes the buffers and open a new thread on connection with a clients,
-     *
-     * @param ip   String corresponding to the ip address to run the server on
-     * @param port int corresponding to the port to listen to
-     * @throws IOException in case an an I/O error occurs
-     */
-    private void start(String ip, int port) throws IOException {
-        ServerSocket serverSocket = new ServerSocket(port, 0, InetAddress.getByName(ip));
-        System.out.println("Server up, listening on " + ip + ":" + port + " and waiting for connections");
+    private void start(int port, Twitter twitter, PrivateKey privateKey, List<ServerChannel> servers, List<Integer> portsAux) throws IOException {
+        ServerSocket serverSocket = new ServerSocket(port, 0, InetAddress.getByName(IP));
+        System.out.println("Server up, listening on " + IP + ":" + port + " and waiting for connections");
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
         //noinspection InfiniteLoopStatement
         while (true) {
-            Socket clientSocket = serverSocket.accept();
-            clientSocket.setSoTimeout(TIMEOUT * 1000);
-            System.out.println("Established connection with client-> " +
-                    clientSocket.getInetAddress().toString() + ":" + clientSocket.getPort());
+            Socket socket = serverSocket.accept();
+            socket.setSoTimeout(TIMEOUT * 1000);
+            System.out.println("Established connection with socket-> " +
+                    socket.getInetAddress().toString() + ":" + socket.getPort());
             System.out.println("Creating new thread");
-            BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true, StandardCharsets.UTF_8);
-            threadPoolExecutor.execute(new ServerThread(twitter, privateKey, clientSocket, in, out));
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
+            threadPoolExecutor.execute(new ServerThread(twitter, privateKey, socket, in, out));
         }
+    }
+
+    private static Map<String, String> parseOptions(String file) throws IOException {
+        Map<String, String> resp = new HashMap<>();
+        // Open the file
+        FileInputStream fstream = new FileInputStream(file);
+        BufferedReader br = new BufferedReader(new InputStreamReader(fstream));
+        String strLine;
+        String[] list;
+        //Read File Line By Line
+        while ((strLine = br.readLine()) != null) {
+            if (strLine.startsWith("#")) continue;
+            list = strLine.split("=");
+            resp.put(list[0], list[1]);
+        }
+        //Close the input stream
+        fstream.close();
+        return resp;
     }
 
 }

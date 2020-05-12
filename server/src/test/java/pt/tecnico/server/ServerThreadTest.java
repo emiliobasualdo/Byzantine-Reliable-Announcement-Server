@@ -49,7 +49,7 @@ class ServerThreadTest {
         PrintWriter out = mock(PrintWriter.class);
         BufferedReader in = mock(BufferedReader.class);
         clientSocket = mock(Socket.class);
-        serverThread = new ServerThread(mock(Twitter.class), serverPrivateKey, clientSocket, in, out);
+        serverThread = new ServerThread(mock(Twitter.class), serverPrivateKey, clientSocket, in, out, servers);
     }
 
     @AfterEach

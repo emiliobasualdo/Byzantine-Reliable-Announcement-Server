@@ -4,10 +4,7 @@ import org.beryx.textio.TextIO;
 import org.beryx.textio.TextIoFactory;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import pt.tecnico.model.Action;
-import pt.tecnico.model.MyCrypto;
-import pt.tecnico.model.Parameters;
-import pt.tecnico.model.ServerChannel;
+import pt.tecnico.model.*;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -161,19 +158,33 @@ public class Client {
                     }
                     continue;
                 case REGISTER:
-                    method = () -> proto.register();
+                    method = () -> {
+                        try {
+                            proto.register();
+                        } catch (BadResponseException e) {
+                            e.printStackTrace();
+                        }
+                    };
                     break;
                 case READ:
                     method = () -> {
                         String who = textIO.newStringInputReader().read("Who do you want to read from?");
                         Integer num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
-                        proto.read(who, num);
+                        try {
+                            proto.read(who, num);
+                        } catch (BadResponseException e) {
+                            e.printStackTrace();
+                        }
                     };
                     break;
                 case READ_GENERAL:
                     method = () -> {
                         Integer num = textIO.newIntInputReader().withMinVal(0).read("How many announcements?");
-                        proto.readGeneral(num);
+                        try {
+                            proto.readGeneral(num);
+                        } catch (BadResponseException e) {
+                            e.printStackTrace();
+                        }
                     };
                     break;
                 case POST:
@@ -181,7 +192,11 @@ public class Client {
                         String msg = textIO.newStringInputReader().read("Type the announcement message");
                         System.out.println("Type the announcements's ids you want to make reference separated by commas:");
                         List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
-                        proto.post(msg, list);
+                        try {
+                            proto.post(msg, list);
+                        } catch (BadResponseException e) {
+                            e.printStackTrace();
+                        }
                     };
                     break;
                 case POST_GENERAL:
@@ -189,7 +204,11 @@ public class Client {
                         String msg = textIO.newStringInputReader().read("Type the announcement message");
                         System.out.println("Type the announcements's ids you want to make reference to separated by commas:");
                         List<Integer> list = textIO.newIntInputReader().withMinVal(0).readList();
-                        proto.postGeneral(msg, list);
+                        try {
+                            proto.postGeneral(msg, list);
+                        } catch (BadResponseException e) {
+                            e.printStackTrace();
+                        }
                     };
                     break;
                 case EXIT:

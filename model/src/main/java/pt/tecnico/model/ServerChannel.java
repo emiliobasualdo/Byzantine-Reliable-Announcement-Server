@@ -94,8 +94,8 @@ public class ServerChannel {
         body = new JSONObject(body.toString());
         JSONObject req = new JSONObject();
         req.put(Parameters.body.name(), body);
+        clientNonce = req.getString(Parameters.client_nonce.name());
         // We add the nonce and pub, sign each request and send it
-        req.put(Parameters.client_nonce.name(), clientNonce);
         req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
         sign(req, clientPrivateKey);
         out.println(req.toString());
@@ -121,7 +121,6 @@ public class ServerChannel {
         this.socket.setSoTimeout(TIMEOUT);
         this.out = new PrintWriter(socket.getOutputStream(), true);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        this.clientNonce = MyCrypto.getRandomNonce();
         socket.getLocalPort();
     }
 }

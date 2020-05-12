@@ -32,7 +32,6 @@ public class ServerThread implements Runnable {
     private final PrintWriter out;
     private final BufferedReader in;
 
-    private String serverNonce;
     private String clientNonce;
 
     /**
@@ -54,8 +53,6 @@ public class ServerThread implements Runnable {
     public void run() {
         try {
             receive(in.readLine());
-            if (clientSocket.isClosed()) throw new IOException("Client closed the connection");
-            receive(in.readLine());
         } catch (SocketTimeoutException e) {
             System.err.println("Timeout reached");
         } catch (IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException | NoSuchAlgorithmException | InvalidKeyException e) {
@@ -63,6 +60,33 @@ public class ServerThread implements Runnable {
         } catch (IOException e) {
             System.err.println(e.getMessage());
         }
+    }
+
+    JSONObject receive(String msg) throws IllegalBlockSizeException, NoSuchPaddingException, BadPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+        JSONObject resp;
+        try {
+            // extract the client's nonce and public key and check signature
+            JSONObject packet = check(msg);
+            System.out.println("Client message:" + packet.toString(2));
+            // we set the client's nonce
+            setClientNonce(packet.getString(Parameters.client_nonce.name()));
+            resp = handleRequest(packet);
+            resp.put(Parameters.status.name(), Status.OK.name());
+            handleResponse(resp);
+        } catch (IllegalArgumentException | JSONException e) {
+            resp = new JSONObject();
+            resp.put(Parameters.err_msg.name(), e.getMessage());
+            resp.put(Parameters.status.name(), Status.CLIENT_ERROR.name());
+            handleResponse(resp);
+            System.out.println("Client error: " + e.getMessage());
+        } catch (InternalError e) {
+            resp = new JSONObject();
+            resp.put(Parameters.err_msg.name(), "Ups.... we had an internal error");
+            resp.put(Parameters.status.name(), Status.SERVER_ERROR.name());
+            handleResponse(resp);
+            System.err.println(e.getMessage());
+        }
+        return resp;
     }
 
     @SuppressWarnings("unchecked")
@@ -78,11 +102,6 @@ public class ServerThread implements Runnable {
             List<Integer> ann;
             List<Announcement> list;
             switch (Action.valueOf(action)) {
-                case REGISTER:
-                    publicKey = joMap.getString(Parameters.client_public_key.name());
-                    server.register(publicKey);
-                    resp.put(Parameters.data.name(), "Successfully registered");
-                    break;
                 case READ:
                     publicKey = body.getString(Parameters.board_public_key.name());
                     number = body.getInt(Parameters.number.name());
@@ -93,6 +112,11 @@ public class ServerThread implements Runnable {
                     number = body.getInt(Parameters.number.name());
                     list = server.readGeneral(number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
+                    break;
+                case REGISTER:
+                    publicKey = joMap.getString(Parameters.client_public_key.name());
+                    server.register(publicKey);
+                    resp.put(Parameters.data.name(), "Successfully registered");
                     break;
                 case POST:
                     publicKey = joMap.getString(Parameters.client_public_key.name());
@@ -152,7 +176,7 @@ public class ServerThread implements Runnable {
                 String reqClientNonce = jo.getString(Parameters.client_nonce.name());
                 String reqServerNonce = jo.getString(Parameters.server_nonce.name());
                 // No need to check for null or length as equals does that
-                if (!clientNonce.equals(reqClientNonce) || !serverNonce.equals(reqServerNonce))
+                if (!clientNonce.equals(reqClientNonce) )
                     throw new IllegalArgumentException("Illegal nonce");
             }
         } catch (IllegalArgumentException | BadPaddingException | InvalidKeySpecException | JSONException e) {
@@ -164,63 +188,16 @@ public class ServerThread implements Runnable {
         return new JSONObject(msg);
     }
 
-    private void handleResponse(JSONObject resp, boolean close) throws InternalError, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+    private void handleResponse(JSONObject resp) throws InternalError, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
         resp.put(Parameters.client_nonce.name(), clientNonce);
-        resp.put(Parameters.server_nonce.name(), serverNonce);
         String sig = MyCrypto.digestAndSignToB64(resp.toString().getBytes(), privateKey);
         resp.put(Parameters.signature.name(), sig);
         out.println(resp.toString());
-        if (close) {
-            try {
-                closeClientConn();
-            } catch (IOException e) {
-                throw new InternalError(e);
-            }
-        }
-    }
-
-    JSONObject receive(String msg) throws IllegalBlockSizeException, NoSuchPaddingException, BadPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-        JSONObject resp;
-        boolean close;
         try {
-            // extract the client's nonce and public key and check signature
-            JSONObject packet = check(msg);
-            System.out.println("Client message:" + packet.toString(2));
-            if (clientNonce == null) { // first packet of the protocol
-                // we set the client's nonce and create the server's (our) nonce
-                setNonces(packet.getString(Parameters.client_nonce.name()));
-                // answer server's nonce using client's nonce
-                resp = new JSONObject();
-                close = false;
-            } else { // second packet of the protocol
-                resp = handleRequest(packet);
-                close = true;
-            }
-            resp.put(Parameters.status.name(), Status.OK.name());
-            handleResponse(resp, close);
-        } catch (IllegalArgumentException | JSONException e) {
-            resp = new JSONObject();
-            resp.put(Parameters.err_msg.name(), e.getMessage());
-            resp.put(Parameters.status.name(), Status.CLIENT_ERROR.name());
-            handleResponse(resp, true);
-            System.out.println("Client error: " + e.getMessage());
-        } catch (InternalError e) {
-            resp = new JSONObject();
-            resp.put(Parameters.err_msg.name(), "Ups.... we had an internal error");
-            resp.put(Parameters.status.name(), Status.SERVER_ERROR.name());
-            handleResponse(resp, true);
-            System.err.println(e.getMessage());
+            closeClientConn();
+        } catch (IOException e) {
+            throw new InternalError(e);
         }
-        return resp;
-    }
-
-    private void setNonces(String nonce) throws IllegalArgumentException {
-        setClientNonce(nonce);
-        setServerNonce();
-    }
-
-    private void setServerNonce() {
-        serverNonce = MyCrypto.getRandomNonce();
     }
 
     private void setClientNonce(String nonce) throws IllegalArgumentException {

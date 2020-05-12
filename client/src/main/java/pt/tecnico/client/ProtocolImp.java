@@ -27,7 +27,7 @@ public class ProtocolImp {
         this.clientPrivateKey = clientPrivateKey;
     }
 
-    private JSONObject broadCast(JSONObject jsonObject) throws BadResponseException {
+    private JSONObject broadcast(JSONObject jsonObject, String clientNonce) throws BadResponseException {
         Map<Integer, Integer> bodyCount = new HashMap<>();
         Map<Integer, JSONObject> bodies = new HashMap<>();
         servers.forEach(s -> {
@@ -59,22 +59,21 @@ public class ProtocolImp {
                 highestHash = hash;
             }
         }
+        JSONObject resp = bodies.get(highestHash);
+        if (!resp.getString(Parameters.client_nonce.name()).equals(clientNonce)) {
+            throw new BadResponseException("Nonce don't match");
+        }
         if ( N-highestCount > F ) {
             throw new BadResponseException("More than F servers differed in their response.");
         }
-        return bodies.get(highestHash);
+        return resp;
     }
 
-    /**
-     * Send the second request
-     *
-     * @param req JSONObject corresponding to the message to send to the server
-     * @return a JSONObject containing the server response
-     */
-    @SuppressWarnings("UnusedReturnValue")
-    private JSONObject secondRequest(JSONObject req) throws BadResponseException {
+    private JSONObject request(JSONObject req) throws BadResponseException {
         // for each open connection we send the message
-        return broadCast(req);
+        String nonce = MyCrypto.getRandomNonce();
+        req.put(Parameters.client_nonce.name(), nonce);
+        return broadcast(req, nonce);
     }
 
     public void printServersPublicKey() {
@@ -87,7 +86,7 @@ public class ProtocolImp {
     void register() throws BadResponseException {
         JSONObject req = new JSONObject();
         req.put(Parameters.action.name(), Action.REGISTER.name());
-        secondRequest(req);
+        request(req);
     }
 
     /**
@@ -138,7 +137,7 @@ public class ProtocolImp {
         // we add the post signature
         req.put(Parameters.post_signature.name(), postSig);
         // we sign and send
-        secondRequest(req);
+        request(req);
     }
 
     /**
@@ -152,7 +151,7 @@ public class ProtocolImp {
         req.put(Parameters.action.name(), Action.READ.name());
         req.put(Parameters.board_public_key.name(), key);
         req.put(Parameters.number.name(), number);
-        secondRequest(req);
+        request(req);
     }
 
     /**
@@ -164,6 +163,6 @@ public class ProtocolImp {
         JSONObject req = new JSONObject();
         req.put(Parameters.action.name(), Action.READGENERAL.name());
         req.put(Parameters.number.name(), number);
-        secondRequest(req);
+        request(req);
     }
 }
