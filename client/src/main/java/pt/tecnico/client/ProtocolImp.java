@@ -8,12 +8,13 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import java.io.IOException;
-import java.net.ConnectException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.util.*;
-// todo testar con más de un servidor
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class ProtocolImp {
 
     private PrivateKey clientPrivateKey;
@@ -65,10 +66,10 @@ public class ProtocolImp {
             }
         }
         JSONObject resp = bodies.get(highestHash);
-        if ( N-highestCount > F ) {
+        if (N - highestCount > F) {
             throw new BadResponseException("More than F servers differed in their response.");
         }
-        System.out.printf("%d servers answered with the same correct message, %d produced an error\n", highestCount, N-highestCount);
+        System.out.printf("%d servers answered with the same correct message, %d produced an error\n", highestCount, N - highestCount);
         return resp;
     }
 

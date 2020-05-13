@@ -9,13 +9,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 
 public class ServerChannel {
     public final PublicKey serverPublicKey;
@@ -108,7 +108,7 @@ public class ServerChannel {
         req = new JSONObject(req.toString());
         // We add the nonce and pub, sign each request and send it
         if (clientNonce != null) {
-            req.put(Parameters.client_nonce.name(),clientNonce);
+            req.put(Parameters.client_nonce.name(), clientNonce);
         }
         req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
         sign(req, clientPrivateKey);
@@ -119,7 +119,7 @@ public class ServerChannel {
 
     JSONObject read() throws IOException, BadSignatureException, BadResponseException {
         JSONObject resp = new JSONObject(in.readLine());
-        if (resp.length() == 0){
+        if (resp.length() == 0) {
             throw new BadResponseException("Response is null");
         }
         if (!verifySignature(resp, clientNonce, serverPublicKey)) {

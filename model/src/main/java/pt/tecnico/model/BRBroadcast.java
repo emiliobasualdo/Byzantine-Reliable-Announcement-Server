@@ -3,7 +3,6 @@ package pt.tecnico.model;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -34,7 +33,7 @@ public class BRBroadcast {
             this.echoSent = new ConcurrentHashMap<>();
             this.readySent = new ConcurrentHashMap<>();
             this.port = port;
-            this.executorService = Executors.newFixedThreadPool(servers.size()*4);
+            this.executorService = Executors.newFixedThreadPool(servers.size() * 4);
         } else {
             throw new IllegalArgumentException("Number of servers doesn't satisfy N>3f assumption");
         }
@@ -42,10 +41,11 @@ public class BRBroadcast {
 
     /**
      * Broadcast method that sends a message to each server of the BRBroadcast object
-     *  @param broadcast String corresponding to the "broadcast" JSON key. Can be "SEND", "ECHO" or "READY"
+     *
+     * @param broadcast String corresponding to the "broadcast" JSON key. Can be "SEND", "ECHO" or "READY"
      * @param msg       JSONObject corresponding to the message to broadcast
      */
-    public JSONObject broadcast(String broadcast, JSONObject msg) throws BadResponseException, BadSignatureException, IOException {
+    public void broadcast(String broadcast, JSONObject msg) {
         msg = new JSONObject(msg.toString());
         msg.put(Parameters.broadcast.name(), broadcast);
         int errors = 0;
@@ -57,20 +57,27 @@ public class BRBroadcast {
         if (errors > faultyServersCount) {
             throw new IllegalStateException(String.format("More than F(%d) servers responded with an error\n", faultyServersCount));
         }
-        return null;
     }
 
-    public JSONObject broadcast(JSONObject msg) throws BadResponseException, BadSignatureException, IOException {
-        return broadcast("SEND", msg);
+    /**
+     * Broadcast method that sends a SEND message to each server of the BRBroadcast object
+     *
+     * @param msg JSONObject corresponding to the message to broadcast
+     */
+    public void broadcast(JSONObject msg) {
+        broadcast("SEND", msg);
     }
 
     public JSONObject listen() throws BadResponseException, BadSignatureException, IOException {
         return listen(null, null);
     }
+
     /**
      * Listen method to wait for any server to receive a new message, then apply the
      * Byzantine Fault Tolerant Reliable Broadcast protocol
      *
+     * @param firstMessage Initial JSONObject message sent by the server upon start
+     * @param firstSc      ServerChannel whose thread runs this method
      * @return JSONObject in case a message that was not yet delivered was received
      */
     public JSONObject listen(JSONObject firstMessage, ServerChannel firstSc) throws BadResponseException, BadSignatureException, IOException {
@@ -93,6 +100,13 @@ public class BRBroadcast {
         return response;
     }
 
+    /**
+     * Byzantine Fault Tolerant Reliable Broadcast protocol
+     *
+     * @param response JSONObject message received
+     * @param s        ServerChannel who received the message
+     * @return JSONObject in case a message that was not yet delivered was received
+     */
     private JSONObject dealWithResponse(JSONObject response, ServerChannel s) throws BadResponseException, BadSignatureException, IOException {
         if (response != null) {
             String clientNonce = response.getString(Parameters.client_nonce.name());

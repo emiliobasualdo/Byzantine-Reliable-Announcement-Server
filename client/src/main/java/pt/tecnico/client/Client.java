@@ -9,11 +9,17 @@ import pt.tecnico.model.*;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -33,7 +39,7 @@ public class Client {
      * @param args Syntax: client path/to/settings/file
      */
     public static void main(String[] args) throws IOException, UnrecoverableKeyException, CertificateException, NoSuchAlgorithmException, KeyStoreException, InvalidKeySpecException, InvalidKeyException, BadPaddingException, NoSuchPaddingException, IllegalBlockSizeException {
-        if(args.length != 1)
+        if (args.length != 1)
             throw new IllegalArgumentException("Syntax: client <path/to/settings/file>");
         // We need the the path of the folder where to save the keys
         Map<String, String> opts = parseOptions(args[0]);
@@ -64,11 +70,11 @@ public class Client {
         // nd we parse the ports
         PublicKey serverPublicKey;
         ports = ports.replace(" ", "");
-        ports = ports.substring(1, ports.length()-1);
+        ports = ports.substring(1, ports.length() - 1);
         String[] list = ports.split(",");
         int N = list.length;
         for (int i = 0; i < N; i++) {
-            serverPublicKey = MyCrypto.getPublicKey(serverkeyStore,"server_"+i, serverKeyPasswd);
+            serverPublicKey = MyCrypto.getPublicKey(serverkeyStore, "server_" + i, serverKeyPasswd);
             servers.add(new ServerChannel(Integer.parseInt(list[i]), serverPublicKey, pub, priv));
         }
         // done
@@ -108,10 +114,9 @@ public class Client {
      * @throws BadPaddingException       in case the message sent to the server is null
      * @throws NoSuchPaddingException    in case transformation contains a padding scheme that is not available
      * @throws InvalidKeyException       in case the public key is invalid (invalid encoding, wrong length, uninitialized, etc)
-     * @throws IOException               in case an an I/O error occurs
      * @throws InvalidKeySpecException   in case the given key specification is inappropriate for this key factory to produce a public key
      */
-    private void start() throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, IOException, InvalidKeySpecException {
+    private void start() throws NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException, InvalidKeyException, InvalidKeySpecException {
         textIO = TextIoFactory.getTextIO();
         System.out.println("Hello. This is the client for the for the Highly Dependable Announcement Server project.");
         List<String> enumNames = Stream.of(Options.values())

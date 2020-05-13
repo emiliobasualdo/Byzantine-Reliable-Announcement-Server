@@ -37,7 +37,6 @@ public class ServerThread implements Runnable {
     private int port;
 
     private String clientPublicKey;
-
     private String clientNonce;
 
     /**
@@ -46,7 +45,9 @@ public class ServerThread implements Runnable {
      * @param clientSocket Socket opened with the client
      * @param in           BufferedReader to read messages from the client
      * @param out          PrintWriter to write messages to
+     * @param F
      * @param servers
+     * @param port
      * @param broadcast
      */
     public ServerThread(ServerInt server, PrivateKey privateKey, Socket clientSocket, BufferedReader in, PrintWriter out, int F, List<ServerChannel> servers, int port, BRBroadcast broadcast) {
@@ -66,21 +67,21 @@ public class ServerThread implements Runnable {
     public void run() {
         try {
             String firstLine = in.readLine();
-            if(isClient(firstLine)) {
+            if (isClient(firstLine)) {
                 clientReceive(firstLine);
             } else {
                 JSONObject packet = new JSONObject(firstLine);
                 PublicKey publicKey = MyCrypto.publicKeyFromB64String(packet.getString(Parameters.client_public_key.name()));
                 ServerChannel sc = null;
-                for (ServerChannel s: servers) {
+                for (ServerChannel s : servers) {
                     if (s.serverPublicKey.equals(publicKey)) {
                         sc = s;
                         break;
                     }
                 }
-                System.out.printf("Received message from server:%d %s\n",sc.port, firstLine);
+                System.out.printf("Received message from server:%d %s\n", sc.port, firstLine);
                 JSONObject req = broadcast.listen(packet, sc);
-                if (clientPublicKey == null || clientPublicKey.isEmpty()){
+                if (clientPublicKey == null || clientPublicKey.isEmpty()) {
                     clientPublicKey = req.getString(Parameters.client_public_key.name());
                 }
                 handleRequest(req);
@@ -103,7 +104,7 @@ public class ServerThread implements Runnable {
 
 
     JSONObject clientReceive(String msg) throws IllegalBlockSizeException, NoSuchPaddingException, BadPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-        JSONObject resp = null;
+        JSONObject resp;
         try {
             // extract the client's nonce and public key and check signature
             JSONObject packet = check(msg);
@@ -126,8 +127,6 @@ public class ServerThread implements Runnable {
             resp.put(Parameters.status.name(), Status.SERVER_ERROR.name());
             handleResponse(resp);
             System.err.println(e.getMessage());
-        } catch (BadResponseException | BadSignatureException | IOException e) {
-            e.printStackTrace();
         }
         return resp;
     }
