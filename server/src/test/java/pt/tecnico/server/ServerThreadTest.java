@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.*;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,7 +31,6 @@ class ServerThreadTest {
     private static ServerThread serverThread;
     private static Socket clientSocket;
     private static String client_nonce;
-    private static String server_nonce;
 
     @BeforeAll
     static void beforeAll() throws NoSuchAlgorithmException {
@@ -49,7 +49,7 @@ class ServerThreadTest {
         PrintWriter out = mock(PrintWriter.class);
         BufferedReader in = mock(BufferedReader.class);
         clientSocket = mock(Socket.class);
-        serverThread = new ServerThread(mock(Twitter.class), serverPrivateKey, clientSocket, in, out, servers);
+        serverThread = new ServerThread(mock(Twitter.class), serverPrivateKey, clientSocket, in, out, 1, new ArrayList<>(), 8000, true);
     }
 
     @AfterEach
@@ -65,17 +65,15 @@ class ServerThreadTest {
     private JSONObject sendAndSet(JSONObject jo) throws IllegalBlockSizeException, NoSuchPaddingException, BadPaddingException, NoSuchAlgorithmException, InvalidKeyException {
         JSONObject resp = send(jo);
         client_nonce = jo.getString(Parameters.client_nonce.name());
-        server_nonce = resp.getString(Parameters.server_nonce.name());
         return resp;
     }
 
     private JSONObject send(JSONObject req) throws NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, NoSuchPaddingException, IllegalBlockSizeException {
-        return serverThread.receive(req.toString());
+        return serverThread.clientReceive(req.toString());
     }
 
     private void setNonces(JSONObject req) {
         req.put(Parameters.client_nonce.name(), client_nonce);
-        req.put(Parameters.server_nonce.name(), server_nonce);
     }
 
     private JSONObject makeInitialPackage() throws IllegalBlockSizeException, NoSuchPaddingException, BadPaddingException, NoSuchAlgorithmException, InvalidKeyException {
@@ -95,7 +93,6 @@ class ServerThreadTest {
         resp.put(Parameters.post_signature.name(), sig);
         resp.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
         resp.put(Parameters.client_nonce.name(), client_nonce);
-        resp.put(Parameters.server_nonce.name(), server_nonce);
         setNonces(resp);
         digestAndSign(resp);
         return resp;
@@ -114,7 +111,6 @@ class ServerThreadTest {
         System.out.println(initJo.toString(2));
         // ASSERT
         assertEquals(resp.getString(Parameters.client_nonce.name()), initJo.getString(Parameters.client_nonce.name()));
-        assertEquals(resp.getString(Parameters.server_nonce.name()).length(), MyCrypto.NONCE_LENGTH);
     }
 
     @Test
@@ -132,13 +128,10 @@ class ServerThreadTest {
         System.out.println(secondReq.toString(2));
         // ASSERT
         assertEquals(firstResp.getString(Parameters.client_nonce.name()), client_nonce);
-        assertEquals(firstResp.getString(Parameters.server_nonce.name()), server_nonce);
 
         assertEquals(secondReq.getString(Parameters.client_nonce.name()), firstreq.getString(Parameters.client_nonce.name()));
-        assertEquals(secondReq.getString(Parameters.server_nonce.name()), server_nonce);
 
         assertEquals(secondResp.getString(Parameters.client_nonce.name()), client_nonce);
-        assertEquals(secondResp.getString(Parameters.server_nonce.name()), server_nonce);
     }
 
     @Test
@@ -172,28 +165,6 @@ class ServerThreadTest {
         secondReq.remove(Parameters.signature.name());
         digestAndSign(secondReq);
         System.out.println("Client's nonce should be: " + client_nonce + " but we change it:");
-        System.out.println(secondReq.toString(2));
-        // EXERCISE
-        resp = send(secondReq);
-        System.out.println("Server's answer:");
-        System.out.println(resp.toString(2));
-        // ASSERT
-        assertEquals(resp.getString(Parameters.status.name()), Status.CLIENT_ERROR.name());
-        assertEquals(resp.getString(Parameters.err_msg.name()), "Illegal nonce");
-    }
-
-    @Test
-    void test_illegal_server_second_nonce_returns_error() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
-        System.out.println("If client sends an illegal server nonce in the second package, ex: an old one, server answers with an error");
-        JSONObject req = makeInitialPackage();
-        JSONObject resp = sendAndSet(req);
-        assertEquals(resp.getString(Parameters.status.name()), Status.OK.name());
-        JSONObject secondReq = makeSecondPackage();
-        // edit the nonce
-        System.out.println("Server's's nonce should be: " + server_nonce + " but we change it:");
-        secondReq.put(Parameters.server_nonce.name(), MyCrypto.getRandomNonce());
-        secondReq.remove(Parameters.signature.name());
-        digestAndSign(secondReq);
         System.out.println(secondReq.toString(2));
         // EXERCISE
         resp = send(secondReq);
@@ -256,23 +227,5 @@ class ServerThreadTest {
         // ASSERT
         assertEquals( Status.CLIENT_ERROR.name(), resp.getString(Parameters.status.name()));
         assertEquals("Post signature does not match the post body", resp.getString(Parameters.err_msg.name()));
-    }
-
-    @Test
-    void test_duplicate_first_package_returns_error() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
-        System.out.println("If client sends the first package twice, ex: duplicate attack, the server return an error");
-        JSONObject req = makeInitialPackage();
-        System.out.println("Client package:");
-        System.out.println(req.toString(2));
-        System.out.println("Sending once...");
-        sendAndSet(req);
-        // EXERCISE
-        System.out.println("Sending twice...");
-        JSONObject resp = send(req);
-        System.out.println("Server's answer:");
-        System.out.println(resp.toString(2));
-        // ASSERT
-        assertEquals(resp.getString(Parameters.status.name()), Status.CLIENT_ERROR.name());
-        assertEquals(resp.getString(Parameters.err_msg.name()), "JSONObject[\"server_nonce\"] not found.");
     }
 }

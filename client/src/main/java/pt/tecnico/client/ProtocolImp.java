@@ -8,6 +8,7 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -33,25 +34,30 @@ public class ProtocolImp {
         servers.forEach(s -> {
             JSONObject resp;
             int hash;
+            JSONObject body;
             try {
-                resp = s.send(jsonObject);
-                hash = resp.getJSONObject(Parameters.body.name()).hashCode();
+                resp = s.send(new JSONObject(jsonObject.toString()), clientNonce);
+                body = resp.getJSONObject(Parameters.body.name());
+                hash = body.hashCode();
+                if (!body.getString(Parameters.client_nonce.name()).equals(clientNonce)) {
+                    throw new BadResponseException("Nonce don't match");
+                }
             } catch (IOException | BadResponseException | BadSignatureException e) {
-                System.out.printf("Error sending to server %d \n", s.port);
+                System.out.printf("Error sending to server %d %s\n", s.port, e.getMessage());
                 return;
             }
             // we add 1 to the count
-            int count = 0;
+            int count = 1;
             if (bodyCount.containsKey(hash)) {
                 count = bodyCount.get(hash) + 1;
             }
             bodyCount.put(hash, count);
             // we save the message
-            bodies.put(hash, resp);
+            bodies.put(hash, body);
         });
         // we find the response with the highest count
         int highestHash = 0;
-        int highestCount = -1;
+        int highestCount = 0;
         for (Integer hash : bodyCount.keySet()) {
             int count = bodyCount.get(hash);
             if (count > highestCount) {
@@ -60,9 +66,6 @@ public class ProtocolImp {
             }
         }
         JSONObject resp = bodies.get(highestHash);
-        if (!resp.getString(Parameters.client_nonce.name()).equals(clientNonce)) {
-            throw new BadResponseException("Nonce don't match");
-        }
         if ( N-highestCount > F ) {
             throw new BadResponseException("More than F servers differed in their response.");
         }
@@ -72,8 +75,9 @@ public class ProtocolImp {
     private JSONObject request(JSONObject req) throws BadResponseException {
         // for each open connection we send the message
         String nonce = MyCrypto.getRandomNonce();
-        req.put(Parameters.client_nonce.name(), nonce);
-        return broadcast(req, nonce);
+        JSONObject respBody = broadcast(req, nonce);
+        System.out.printf("Servers answered: %s \n", respBody.toString(2));
+        return respBody;
     }
 
     public void printServersPublicKey() {

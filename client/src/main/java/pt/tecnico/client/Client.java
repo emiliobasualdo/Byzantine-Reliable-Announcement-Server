@@ -37,16 +37,14 @@ public class Client {
             throw new IllegalArgumentException("Syntax: client <path/to/settings/file>");
         // We need the the path of the folder where to save the keys
         Map<String, String> opts = parseOptions(args[0]);
-        if (!(opts.size() == 5 || opts.size() == 8))
+        if (!(opts.size() == 4 || opts.size() == 7))
             throw new IllegalArgumentException("Some options are missing");
 
         PublicKey pub;
         PrivateKey priv;
-        int N;
-        int F;
         List<ServerChannel> servers = new ArrayList<>();
         // we set the parameters
-        F = Integer.parseInt(opts.get("f"));
+        int F = Integer.parseInt(opts.get("f"));
         String ports = opts.get("ports");
         String serverkeyStore = opts.get("server_keystore_path");
         String serverKeyPasswd = opts.get("server_store_password");
@@ -70,7 +68,7 @@ public class Client {
         ports = ports.replace(" ", "");
         ports = ports.substring(1, ports.length()-1);
         String[] list = ports.split(",");
-        N = list.length;
+        int N = list.length;
         for (int i = 0; i < N; i++) {
             serverPublicKey = MyCrypto.getPublicKey(serverkeyStore,"server_"+i, serverKeyPasswd);
             servers.add(new ServerChannel(Integer.parseInt(list[i]), serverPublicKey, pub, priv));

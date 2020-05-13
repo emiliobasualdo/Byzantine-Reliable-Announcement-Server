@@ -19,7 +19,7 @@ We generate each server's keys by:
 2. creating a key for each one by passing the folder path and the number of servers to our bash helper 
 ```shell script
 mkdir -p /local/path/to/save/keys
-./serverKeysGenerator.sh /local/path/to/save/keys/server_keystore.p12 numberOfServers pass1234
+sh serverKeysGenerator.sh /local/path/to/save/keys/server_keystore.p12 numberOfServers pass1234
 ```
 
 ### 3. Start the server

@@ -5,7 +5,6 @@ package pt.tecnico.model;
  */
 public enum Parameters {
     client_nonce,
-    server_nonce,
     client_public_key,
     signature,
     post_signature,
