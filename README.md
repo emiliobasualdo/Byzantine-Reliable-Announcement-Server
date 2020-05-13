@@ -23,22 +23,26 @@ sh serverKeysGenerator.sh /local/path/to/save/keys/server_keystore.p12 numberOfS
 ```
 
 ### 3. Start the server
-Pass the path where the `server_keystore` was saved, the key alias, the password, the ip and the port the server will listen to
+We now use a client_config.txt file to pass all the required parameters to the client(servers keystore, keystore password, alias, ports, etc)  
+Edit it to your need, you can find an example in the src of the entire project.  
+Pass the path where the client_config.txt file the server number(ex: 1) and the port
 ```shell script
-java -jar server/target/server-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyAlias pass1234 127.0.0.1 8000
+java -jar server/target/server-1.0-jar-with-dependencies.jar path/to/Dependable-Public-Announcement-Server/client_config.txt 1 8001
 ```
 
 ### 4. Start the client
 The client will generate its own keypair by default, therefore a "new" client is generated on every run of the following jar. 
 If you intend on using the same client more than once. Go to section 4.2
-##### 4.1 New client  
-Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port
+##### 4.1 New client    
+The client_config.txt is the only parameter passed to the client.  
+By default the client generates a new pair of symmetric keys on startup.
 ```shell script
-java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyAlias pass1234 127.0.0.1 8000
+java -jar server/target/server-1.0-jar-with-dependencies.jar /path/to/Dependable-Public-Announcement-Server/client_config.txt
 ```
 
-##### 4.2 Reuse client
-- Generate the client's key
+##### 4.2 Reuse client's key
+You can reuse a previous keypair by passing it as an argument on startup.
+- Generate the client's key and save it in a keystore
 ```shell script
 mkdir -p /local/path/to/save/keys
 cd /local/path/to/save/keys
@@ -50,9 +54,9 @@ keytool -genkeypair -alias clientKeyPair -keyalg RSA -keysize 2048 \
 ```shell script
 cd local/path/to/Dependable-Public-Announcement-Server 
 ```
-Pass the path where the `server_keystore` was saved, the key alias, the password, the server ip and port, the path where the `client_keystore` was saved, the key alias and the password
+Edit the client_config.txt file and remove the # to uncomment the needed parametrs, replace the values with the ones you just used tot created the client's key
 ```shell script
-java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save/keys/server_keystore.p12 serverKeyAlias pass1234 127.0.0.1 8000 /local/path/to/save/keys/client_keystore.p12 clientKeyAlias pass1234
+java -jar server/target/server-1.0-jar-with-dependencies.jar /Users/pilo/development/ist/hds/Dependable-Public-Announcement-Server/client_config.txt
 ```
 
 # Run a hacker
@@ -62,6 +66,7 @@ To simulate a hacker you can start a proxy server that can read, drop, edit and 
 3. Start the client and tell him the server is listening on port Y
 
 ### Start the hacker
+You could use thte hacker to simulate a server's presence.  
 Pass the port where the hacker will start, the ip and the port the server is listening to
 ```shell script
 java -jar hacker/target/hacker-1.0-jar-with-dependencies.jar 8001 127.0.0.1 8000
