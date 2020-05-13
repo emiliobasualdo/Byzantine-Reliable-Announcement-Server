@@ -42,7 +42,7 @@ java -jar client/target/client-1.0-jar-with-dependencies.jar /local/path/to/save
 ```shell script
 mkdir -p /local/path/to/save/keys
 cd /local/path/to/save/keys
-keytool -genkeypair -alias clientKeyAlias -keyalg RSA -keysize 2048 \
+keytool -genkeypair -alias clientKeyPair -keyalg RSA -keysize 2048 \
   -dname "CN=twitter" -validity 365 -storetype PKCS12 \
   -keystore client_keystore.p12 -storepass pass1234
 ```

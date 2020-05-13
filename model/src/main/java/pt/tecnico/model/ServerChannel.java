@@ -38,6 +38,14 @@ public class ServerChannel {
         this.clientPrivateKey = clientPrivateKey;
     }
 
+    public ServerChannel(ServerChannel serverChannel, Socket socket) throws IOException {
+        this.port = serverChannel.port;
+        this.serverPublicKey = serverChannel.serverPublicKey;
+        this.clientPublicKey = serverChannel.clientPublicKey;
+        this.clientPrivateKey = serverChannel.clientPrivateKey;
+        open(socket);
+    }
+
     private static void sign(JSONObject jo, PrivateKey priv) {
         String sig;
         try {
@@ -59,11 +67,10 @@ public class ServerChannel {
             if (!MyCrypto.verifySignature(sig, resp.toString().getBytes(), serverPublicKey))
                 throw new IllegalArgumentException("Signature does not match");
             // If nonces are set then we check their validity
-            String respClientNonce = resp.getJSONObject(Parameters.body.name()).getString(Parameters.client_nonce.name());
+            String respClientNonce = resp.getString(Parameters.client_nonce.name());
             // No need to check for null or length as equals does that
             if (!clientNonce.equals(respClientNonce))
                 throw new IllegalArgumentException("Nonces don't match");
-            System.out.println("Server: %d signature and nonce are correct");
             return true;
         } catch (Exception e) {
             System.err.println(e.getMessage());
@@ -73,7 +80,7 @@ public class ServerChannel {
         }
     }
 
-    private void close() {
+    public void close() {
         try {
             in.close();
             out.close();
@@ -94,29 +101,23 @@ public class ServerChannel {
         return send(body);
     }
 
-    public JSONObject send(JSONObject body) throws BadResponseException, BadSignatureException, IOException {
-        return send(body, new JSONObject());
-    }
-
-    public JSONObject send(JSONObject body, JSONObject outOfBodyParams) throws IOException, BadResponseException, BadSignatureException {
+    public JSONObject send(JSONObject req) throws IOException, BadResponseException, BadSignatureException {
         // first we open the socket
         open();
         // we prepare to send the message
-        body = new JSONObject(body.toString());
+        req = new JSONObject(req.toString());
         // We add the nonce and pub, sign each request and send it
         if (clientNonce != null) {
-            body.put(Parameters.client_nonce.name(),clientNonce);
+            req.put(Parameters.client_nonce.name(),clientNonce);
         }
-        body.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
-        JSONObject req = new JSONObject(outOfBodyParams.toString());
-        req.put(Parameters.body.name(), body);
+        req.put(Parameters.client_public_key.name(), MyCrypto.publicKeyToB64String(clientPublicKey));
         sign(req, clientPrivateKey);
         out.println(req.toString());
         // once sent we wait for an answer from the server
         return read();
     }
 
-    private JSONObject read() throws IOException, BadSignatureException, BadResponseException {
+    JSONObject read() throws IOException, BadSignatureException, BadResponseException {
         JSONObject resp = new JSONObject(in.readLine());
         if (resp.length() == 0){
             throw new BadResponseException("Response is null");
@@ -124,6 +125,7 @@ public class ServerChannel {
         if (!verifySignature(resp, clientNonce, serverPublicKey)) {
             throw new BadSignatureException("Bad signature");
         }
+        System.out.printf("Server: %d signature and nonce are correct\n", port);
         return resp;
     }
 
@@ -132,12 +134,12 @@ public class ServerChannel {
         this.socket.setSoTimeout(TIMEOUT);
         this.out = new PrintWriter(socket.getOutputStream(), true);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        socket.getLocalPort();
         this.isOpen = true;
     }
 
     private void open() throws IOException {
-        open(new Socket(SERVER_IP, port));
+        if (!isOpen)
+            open(new Socket(SERVER_IP, port));
     }
 
     public JSONObject listen() throws BadResponseException, BadSignatureException, IOException {

@@ -25,6 +25,7 @@ import java.util.List;
  * Server class to handle client requests
  */
 public class ServerThread implements Runnable {
+    private final BRBroadcast broadcast;
     private int F;
     private ServerInt server;
     private PrivateKey privateKey;
@@ -34,8 +35,6 @@ public class ServerThread implements Runnable {
     private BufferedReader in;
     private List<ServerChannel> servers;
     private int port;
-    private boolean clientChannel;
-    private ServerChannel serverChannel;
 
     private String clientPublicKey;
 
@@ -48,9 +47,9 @@ public class ServerThread implements Runnable {
      * @param in           BufferedReader to read messages from the client
      * @param out          PrintWriter to write messages to
      * @param servers
-     * @param clientSocket Socket opened with the client
+     * @param broadcast
      */
-    public ServerThread(ServerInt server, PrivateKey privateKey, Socket clientSocket, BufferedReader in, PrintWriter out, int F, List<ServerChannel> servers, int port, boolean clientChannel) {
+    public ServerThread(ServerInt server, PrivateKey privateKey, Socket clientSocket, BufferedReader in, PrintWriter out, int F, List<ServerChannel> servers, int port, BRBroadcast broadcast) {
         this.server = server;
         this.privateKey = privateKey;
         this.clientSocket = clientSocket;
@@ -59,26 +58,32 @@ public class ServerThread implements Runnable {
         this.F = F;
         this.servers = servers;
         this.port = port;
-        this.clientChannel = clientChannel;
-    }
-
-    public ServerThread(ServerInt server, PrivateKey privateKey, ServerChannel serverChannel, boolean clientChannel) {
-        this.server = server;
-        this.privateKey = privateKey;
-        this.serverChannel = serverChannel;
-        this.clientChannel = clientChannel;
+        this.broadcast = broadcast;
     }
 
 
     @Override
     public void run() {
         try {
-            if (clientChannel) {
-                // client-server socket
-                clientReceive(in.readLine());
+            String firstLine = in.readLine();
+            if(isClient(firstLine)) {
+                clientReceive(firstLine);
             } else {
-                // server-server socket
-                new BRBroadcast(F, servers, port).listenOnServer(serverChannel);
+                JSONObject packet = new JSONObject(firstLine);
+                PublicKey publicKey = MyCrypto.publicKeyFromB64String(packet.getString(Parameters.client_public_key.name()));
+                ServerChannel sc = null;
+                for (ServerChannel s: servers) {
+                    if (s.serverPublicKey.equals(publicKey)) {
+                        sc = s;
+                        break;
+                    }
+                }
+                System.out.printf("Received message from server:%d %s\n",sc.port, firstLine);
+                JSONObject req = broadcast.listen(packet, sc);
+                if (clientPublicKey == null || clientPublicKey.isEmpty()){
+                    clientPublicKey = req.getString(Parameters.client_public_key.name());
+                }
+                handleRequest(req);
             }
         } catch (SocketTimeoutException e) {
             System.err.println("Timeout reached");
@@ -86,9 +91,14 @@ public class ServerThread implements Runnable {
             throw new InternalError(e);
         } catch (IOException e) {
             System.err.println(e.getMessage());
-        } catch (BadResponseException | BadSignatureException e) {
+        } catch (BadResponseException | BadSignatureException | InvalidKeySpecException e) {
             e.printStackTrace();
         }
+    }
+
+    private boolean isClient(String msg) {
+        JSONObject packet = new JSONObject(msg);
+        return !packet.has(Parameters.broadcast.name());
     }
 
 
@@ -99,9 +109,8 @@ public class ServerThread implements Runnable {
             JSONObject packet = check(msg);
             System.out.println("Client message:" + packet.toString(2));
             // we set the client's nonce
-            JSONObject body = packet.getJSONObject(Parameters.body.name());
-            setClientNonce(body.getString(Parameters.client_nonce.name()));
-            new BRBroadcast(F, servers, port).broadcast(body);
+            setClientNonce(packet.getString(Parameters.client_nonce.name()));
+            broadcast.broadcast(packet);
             resp = handleRequest(packet);
             resp.put(Parameters.status.name(), Status.OK.name());
             handleResponse(resp);
@@ -127,8 +136,7 @@ public class ServerThread implements Runnable {
     private JSONObject handleRequest(JSONObject joMap) {
         JSONObject resp = new JSONObject();
         try {
-            JSONObject body = joMap.getJSONObject(Parameters.body.name());
-            String action = body.getString(Parameters.action.name());
+            String action = joMap.getString(Parameters.action.name());
             if (action == null || action.isEmpty())
                 throw new IllegalArgumentException("Action can not be null");
             int number;
@@ -137,13 +145,13 @@ public class ServerThread implements Runnable {
             List<Announcement> list;
             switch (Action.valueOf(action)) {
                 case READ:
-                    boardPublicKey = body.getString(Parameters.board_public_key.name());
-                    number = body.getInt(Parameters.number.name());
+                    boardPublicKey = joMap.getString(Parameters.board_public_key.name());
+                    number = joMap.getInt(Parameters.number.name());
                     list = server.read(boardPublicKey, number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
                 case READGENERAL:
-                    number = body.getInt(Parameters.number.name());
+                    number = joMap.getInt(Parameters.number.name());
                     list = server.readGeneral(number);
                     resp.put(Parameters.data.name(), new JSONArray(list));
                     break;
@@ -152,22 +160,23 @@ public class ServerThread implements Runnable {
                     resp.put(Parameters.data.name(), "Successfully registered");
                     break;
                 case POST:
-                    signature = checkPostSignature(body, MyCrypto.publicKeyFromB64String(clientPublicKey));
-                    msg = body.getString(Parameters.message.name());
-                    ann = (List<Integer>) jsonArrayToList(body.getJSONArray(Parameters.announcements.name()));
+                    signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(clientPublicKey));
+                    msg = joMap.getString(Parameters.message.name());
+                    ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     server.post(clientPublicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
                 case POSTGENERAL:
-                    signature = checkPostSignature(body, MyCrypto.publicKeyFromB64String(clientPublicKey));
-                    msg = body.getString(Parameters.message.name());
-                    ann = (List<Integer>) jsonArrayToList(body.getJSONArray(Parameters.announcements.name()));
+                    signature = checkPostSignature(joMap, MyCrypto.publicKeyFromB64String(clientPublicKey));
+                    msg = joMap.getString(Parameters.message.name());
+                    ann = (List<Integer>) jsonArrayToList(joMap.getJSONArray(Parameters.announcements.name()));
                     server.postGeneral(clientPublicKey, signature, msg, ann);
                     resp.put(Parameters.data.name(), "Posted successfully!");
                     break;
                 default:
                     throw new IllegalArgumentException("Unexpected value: " + Action.valueOf(action).name() + " for action param.");
             }
+            System.out.printf("%s executed successfully\n", action);
         } catch (Exception e) {
             throw new IllegalArgumentException(e.getMessage());
         }
@@ -197,7 +206,7 @@ public class ServerThread implements Runnable {
             byte[] sig = MyCrypto.decodeB64(jo.getString(Parameters.signature.name()));
             jo.remove(Parameters.signature.name());
             // After the signature comes the real clients request, whose params are \n separated
-            clientPublicKey = jo.getJSONObject(Parameters.body.name()).getString(Parameters.client_public_key.name());
+            clientPublicKey = jo.getString(Parameters.client_public_key.name());
             PublicKey clientPublicKeyAux = MyCrypto.publicKeyFromB64String(clientPublicKey);
             // We verify that the message was not altered
             if (!MyCrypto.verifySignature(sig, jo.toString().getBytes(), clientPublicKeyAux)) {
@@ -212,11 +221,9 @@ public class ServerThread implements Runnable {
         return new JSONObject(msg);
     }
 
-    private void handleResponse(JSONObject body) throws InternalError, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
-        body = new JSONObject(body.toString());
-        JSONObject response = new JSONObject();
-        body.put(Parameters.client_nonce.name(), clientNonce);
-        response.put(Parameters.body.name(), body);
+    private void handleResponse(JSONObject response) throws InternalError, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
+        response = new JSONObject(response.toString());
+        response.put(Parameters.client_nonce.name(), clientNonce);
         String sig = MyCrypto.digestAndSignToB64(response.toString().getBytes(), privateKey);
         response.put(Parameters.signature.name(), sig);
         out.println(response.toString());

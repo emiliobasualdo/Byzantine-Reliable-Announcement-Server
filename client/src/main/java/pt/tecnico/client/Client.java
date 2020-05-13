@@ -37,19 +37,17 @@ public class Client {
             throw new IllegalArgumentException("Syntax: client <path/to/settings/file>");
         // We need the the path of the folder where to save the keys
         Map<String, String> opts = parseOptions(args[0]);
-        if (!(opts.size() == 4 || opts.size() == 7))
-            throw new IllegalArgumentException("Some options are missing");
 
         PublicKey pub;
         PrivateKey priv;
         List<ServerChannel> servers = new ArrayList<>();
         // we set the parameters
         int F = Integer.parseInt(opts.get("f"));
-        String ports = opts.get("ports");
+        String ports = opts.get("client_ports");
         String serverkeyStore = opts.get("server_keystore_path");
         String serverKeyPasswd = opts.get("server_store_password");
         // client specific private key
-        if (opts.size() == 9) {
+        if (opts.containsKey("client_keystore_path")) {
             String clientKeyStore = opts.get("client_keystore_path");
             String clientAlias = opts.get("client_alias");
             String clientPasswd = opts.get("client_store_pass");

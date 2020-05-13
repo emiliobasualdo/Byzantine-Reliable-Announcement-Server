@@ -6,8 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.*;
 
 /**
  * Implements a Byzantine Fault Tolerant Reliable Broadcast protocol
@@ -16,9 +15,10 @@ public class BRBroadcast {
     private final List<ServerChannel> servers;
     private final int faultyServersCount;
     private final List<JSONObject> deliveredMessages;
-    private final Map<JSONObject, ArrayList<ServerChannel>> echoSent;
-    private final Map<JSONObject, ArrayList<ServerChannel>> readySent;
+    private final Map<String, List<ServerChannel>> echoSent;
+    private final Map<String, List<ServerChannel>> readySent;
     private final int port;
+    private final ExecutorService executorService;
 
     /**
      * Constructs an instance of the Byzantine Reliable Broadcast protocol class
@@ -34,6 +34,7 @@ public class BRBroadcast {
             this.echoSent = new ConcurrentHashMap<>();
             this.readySent = new ConcurrentHashMap<>();
             this.port = port;
+            this.executorService = Executors.newFixedThreadPool(servers.size()*4);
         } else {
             throw new IllegalArgumentException("Number of servers doesn't satisfy N>3f assumption");
         }
@@ -45,26 +46,26 @@ public class BRBroadcast {
      * @param msg       JSONObject corresponding to the message to broadcast
      */
     public JSONObject broadcast(String broadcast, JSONObject msg) throws BadResponseException, BadSignatureException, IOException {
-        JSONObject outOfBodyParam = new JSONObject();
-        outOfBodyParam.put(Parameters.broadcast.name(), broadcast);
+        msg = new JSONObject(msg.toString());
+        msg.put(Parameters.broadcast.name(), broadcast);
         int errors = 0;
         for (ServerChannel s : servers) {
             if (s.port == port) continue;
-            try {
-                s.send(msg, outOfBodyParam);
-            } catch (BadResponseException | IOException | BadSignatureException e) {
-                errors++;
-                System.out.printf("Server: %d produced error: %s\n", s.port, e.getMessage());
-            }
+            final JSONObject finalMsg = new JSONObject(msg.toString());
+            executorService.submit(() -> s.send(finalMsg).toString());
         }
         if (errors > faultyServersCount) {
             throw new IllegalStateException(String.format("More than F(%d) servers responded with an error\n", faultyServersCount));
         }
-        return listen();
+        return null;
     }
 
     public JSONObject broadcast(JSONObject msg) throws BadResponseException, BadSignatureException, IOException {
         return broadcast("SEND", msg);
+    }
+
+    public JSONObject listen() throws BadResponseException, BadSignatureException, IOException {
+        return listen(null, null);
     }
     /**
      * Listen method to wait for any server to receive a new message, then apply the
@@ -72,78 +73,83 @@ public class BRBroadcast {
      *
      * @return JSONObject in case a message that was not yet delivered was received
      */
-    public JSONObject listen() throws BadResponseException, BadSignatureException, IOException {
+    public JSONObject listen(JSONObject firstMessage, ServerChannel firstSc) throws BadResponseException, BadSignatureException, IOException {
         JSONObject response = null;
-
         while (response == null) {
-            for (ServerChannel s : servers) {
-                if (s.port == port) continue;
-                response = listenOnServer(s);
+            if (firstSc != null) {
+                response = new JSONObject(firstMessage.toString());
+                response = dealWithResponse(response, firstSc);
+            } else {
+                for (ServerChannel s : servers) {
+                    try {
+                        response = executorService.submit(() -> dealWithResponse(s.read(), s)).get();
+                    } catch (InterruptedException | ExecutionException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
         }
 
         return response;
     }
 
-    public JSONObject listenOnServer(ServerChannel s) throws BadResponseException, BadSignatureException, IOException {
-        JSONObject response = s.listen();
-        if (response == null) {
-            return null;
-        }
-        // Check that the message is not already delivered
-        if (!deliveredMessages.contains(response)) {
-            String broadcast = response.getString(Parameters.broadcast.name());
-
-            if (broadcast.equals("SEND") && !echoSent.containsKey(response)) {
-                // Add the message to the echoSent map
-                echoSent.put(response, new ArrayList<>());
-                // Broadcast the ECHO message
-                broadcast("ECHO", response);
-            } else if (broadcast.equals("ECHO")) {
-                if (!echoSent.containsKey(response)) {
+    private JSONObject dealWithResponse(JSONObject response, ServerChannel s) throws BadResponseException, BadSignatureException, IOException {
+        if (response != null) {
+            String clientNonce = response.getString(Parameters.client_nonce.name());
+            // Check that the message is not already delivered
+            if (!deliveredMessages.contains(response)) {
+                String broadcast = response.getString(Parameters.broadcast.name());
+                if (broadcast.equals("SEND") && !echoSent.containsKey(clientNonce)) {
                     // Add the message to the echoSent map
-                    echoSent.put(response, new ArrayList<>());
-                    // Add the server to the corresponding message in the echoSent map
-                    echoSent.get(response).add(s);
-                } else {
-                    // Add the server to the corresponding message in the echoSent map
-                    echoSent.get(response).add(s);
-                    // If more than (N+f)/2 ECHO messages received, send READY message
-                    if ((echoSent.get(response).size() > (servers.size() + faultyServersCount) / 2)
-                            && !readySent.containsKey(response)) {
+                    echoSent.put(clientNonce, new CopyOnWriteArrayList());
+                    // Broadcast the ECHO message
+                    broadcast("ECHO", response);
+                } else if (broadcast.equals("ECHO")) {
+                    if (!echoSent.containsKey(clientNonce)) {
+                        // Add the message to the echoSent map
+                        echoSent.put(clientNonce, new CopyOnWriteArrayList<>());
+                        // Add the server to the corresponding message in the echoSent map
+                        echoSent.get(clientNonce).add(s);
+                    } else {
+                        // Add the server to the corresponding message in the echoSent map
+                        echoSent.get(clientNonce).add(s);
+                        // If more than (N+f)/2 ECHO messages received, send READY message
+                        if ((echoSent.get(clientNonce).size() > (servers.size() + faultyServersCount) / 2)
+                                && !readySent.containsKey(clientNonce)) {
+                            // Add the message to the readySent map
+                            readySent.put(clientNonce, new CopyOnWriteArrayList<>());
+                            // Broadcast the READY message
+                            broadcast("READY", response);
+                        }
+                    }
+                } else if (broadcast.equals("READY")) {
+                    // If a SEND and ECHO messages were not received, but a READY message was received
+                    if (!readySent.containsKey(clientNonce)) {
                         // Add the message to the readySent map
-                        readySent.put(response, new ArrayList<>());
-                        // Broadcast the READY message
-                        broadcast("READY", response);
+                        readySent.put(clientNonce, new CopyOnWriteArrayList<>());
+                        // Add the server to the corresponding message in the readySent map
+                        readySent.get(clientNonce).add(s);
+                    } else {
+                        // Add the server to the corresponding message in the readySent map
+                        readySent.get(clientNonce).add(s);
+                        // If 2*f READY messages have been delivered, DELIVER the message
+                        if (readySent.get(clientNonce).size() > 2 * faultyServersCount) {
+                            // Add the message to the deliveredMessages array
+                            deliveredMessages.add(response);
+                            // Deliver the message
+                            return response;
+                        } else if (!echoSent.containsKey(clientNonce) && readySent.get(clientNonce).size() > faultyServersCount) {  // If a SEND and ECHO messages were not received, but f READY messages were received, send a READY message
+                            broadcast("READY", response);
+                        }
                     }
-                }
-            } else if (broadcast.equals("READY")) {
-                // If a SEND and ECHO messages were not received, but a READY message was received
-                if (!readySent.containsKey(response)) {
-                    // Add the message to the readySent map
-                    readySent.put(response, new ArrayList<>());
-                    // Add the server to the corresponding message in the readySent map
-                    readySent.get(response).add(s);
                 } else {
-                    // Add the server to the corresponding message in the readySent map
-                    readySent.get(response).add(s);
-                    // If 2*f READY messages have been delivered, DELIVER the message
-                    if (readySent.get(response).size() > 2 * faultyServersCount) {
-                        // Add the message to the deliveredMessages array
-                        deliveredMessages.add(response);
-                        // Deliver the message
-                        return response;
-                    } else if (!echoSent.containsKey(response) && readySent.get(response).size() > faultyServersCount) {  // If a SEND and ECHO messages were not received, but f READY messages were received, send a READY message
-                        broadcast("READY", response);
-                    }
+                    // In any other broadcast value (should not happen), reset the response to stay in the while loop
+                    response = null;
                 }
             } else {
-                // In any other broadcast value (should not happen), reset the response to stay in the while loop
+                // In case the message is already delivered, reset the response to stay in the while loop
                 response = null;
             }
-        } else {
-            // In case the message is already delivered, reset the response to stay in the while loop
-            response = null;
         }
         return response;
     }

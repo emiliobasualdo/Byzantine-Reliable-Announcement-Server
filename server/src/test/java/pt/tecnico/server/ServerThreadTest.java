@@ -3,10 +3,7 @@ package pt.tecnico.server;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.*;
-import pt.tecnico.model.Action;
-import pt.tecnico.model.MyCrypto;
-import pt.tecnico.model.Parameters;
-import pt.tecnico.model.Status;
+import pt.tecnico.model.*;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -49,7 +46,8 @@ class ServerThreadTest {
         PrintWriter out = mock(PrintWriter.class);
         BufferedReader in = mock(BufferedReader.class);
         clientSocket = mock(Socket.class);
-        serverThread = new ServerThread(mock(Twitter.class), serverPrivateKey, clientSocket, in, out, 1, new ArrayList<>(), 8000, true);
+        BRBroadcast brBroadcast = mock(BRBroadcast.class);
+        serverThread = new ServerThread(mock(Twitter.class), serverPrivateKey, clientSocket, in, out, 1, new ArrayList<>(), 8000, brBroadcast);
     }
 
     @AfterEach
@@ -99,42 +97,6 @@ class ServerThreadTest {
     }
 
     @Test
-    void test_correct_first_step_returns_both_nonces() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
-        System.out.println("After first packet Server should return both nonces");
-        // SETUP
-        JSONObject initJo = makeInitialPackage();
-        System.out.println("Initial package send by the client, with random nonce: ");
-        System.out.println(initJo.toString(2));
-        // EXERCISE
-        JSONObject resp = sendAndSet(initJo);
-        System.out.println("Server answers with the client's nonce and new server nonce: ");
-        System.out.println(initJo.toString(2));
-        // ASSERT
-        assertEquals(resp.getString(Parameters.client_nonce.name()), initJo.getString(Parameters.client_nonce.name()));
-    }
-
-    @Test
-    void test_correct_second_step_returns_both_nonces() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
-        System.out.println("After second packet, the server should return both nonces and there should be no problem with signatures");
-        // SETUP
-        JSONObject firstreq = makeInitialPackage();
-        JSONObject firstResp = sendAndSet(firstreq);
-        JSONObject secondReq = makeSecondPackage();
-        System.out.println("Client's second packet with example action but with both nonce");
-        System.out.println(secondReq.toString(2));
-        // EXERCISE
-        JSONObject secondResp = send(secondReq);
-        System.out.println("Server returns both nonces in second package to confirm that we are still in the same communication");
-        System.out.println(secondReq.toString(2));
-        // ASSERT
-        assertEquals(firstResp.getString(Parameters.client_nonce.name()), client_nonce);
-
-        assertEquals(secondReq.getString(Parameters.client_nonce.name()), firstreq.getString(Parameters.client_nonce.name()));
-
-        assertEquals(secondResp.getString(Parameters.client_nonce.name()), client_nonce);
-    }
-
-    @Test
     void test_illegal_first_nonce_returns_error() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
         System.out.println("If client sends an illegal nonce, ex: tampered message, server answers with an error");
         // SETUP
@@ -147,28 +109,6 @@ class ServerThreadTest {
         // EXERCISE
         JSONObject resp = send(req);
         System.out.println("Server's answer");
-        System.out.println(resp.toString(2));
-        // ASSERT
-        assertEquals(resp.getString(Parameters.status.name()), Status.CLIENT_ERROR.name());
-        assertEquals(resp.getString(Parameters.err_msg.name()), "Illegal nonce");
-    }
-
-    @Test
-    void test_illegal_client_second_nonce_returns_error() throws InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, IllegalBlockSizeException, NoSuchPaddingException {
-        System.out.println("If client sends an illegal client nonce in the second package, ex: an old one, server answers with an error");
-        JSONObject req = makeInitialPackage();
-        JSONObject resp = sendAndSet(req);
-        assertEquals(resp.getString(Parameters.status.name()), Status.OK.name());
-        JSONObject secondReq = makeSecondPackage();
-        // edit the nonce
-        secondReq.put(Parameters.client_nonce.name(), MyCrypto.getRandomNonce());
-        secondReq.remove(Parameters.signature.name());
-        digestAndSign(secondReq);
-        System.out.println("Client's nonce should be: " + client_nonce + " but we change it:");
-        System.out.println(secondReq.toString(2));
-        // EXERCISE
-        resp = send(secondReq);
-        System.out.println("Server's answer:");
         System.out.println(resp.toString(2));
         // ASSERT
         assertEquals(resp.getString(Parameters.status.name()), Status.CLIENT_ERROR.name());

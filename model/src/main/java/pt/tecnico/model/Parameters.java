@@ -17,5 +17,4 @@ public enum Parameters {
     status,
     data,
     broadcast,
-    body
 }

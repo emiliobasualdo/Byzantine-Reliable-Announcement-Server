@@ -33,27 +33,26 @@ public class ProtocolImp {
         Map<Integer, JSONObject> bodies = new HashMap<>();
         servers.forEach(s -> {
             JSONObject resp;
-            int hash;
-            JSONObject body;
             try {
                 resp = s.send(new JSONObject(jsonObject.toString()), clientNonce);
-                body = resp.getJSONObject(Parameters.body.name());
-                hash = body.hashCode();
-                if (!body.getString(Parameters.client_nonce.name()).equals(clientNonce)) {
+                if (!resp.getString(Parameters.client_nonce.name()).equals(clientNonce)) {
                     throw new BadResponseException("Nonce don't match");
                 }
+                s.close();
             } catch (IOException | BadResponseException | BadSignatureException e) {
                 System.out.printf("Error sending to server %d %s\n", s.port, e.getMessage());
                 return;
             }
             // we add 1 to the count
+            resp.remove(Parameters.signature.name());
             int count = 1;
+            int hash = resp.toString().hashCode();
             if (bodyCount.containsKey(hash)) {
                 count = bodyCount.get(hash) + 1;
             }
             bodyCount.put(hash, count);
             // we save the message
-            bodies.put(hash, body);
+            bodies.put(hash, resp);
         });
         // we find the response with the highest count
         int highestHash = 0;
@@ -69,6 +68,7 @@ public class ProtocolImp {
         if ( N-highestCount > F ) {
             throw new BadResponseException("More than F servers differed in their response.");
         }
+        System.out.printf("%d servers answered with the same correct message, %d produced an error\n", highestCount, N-highestCount);
         return resp;
     }
 

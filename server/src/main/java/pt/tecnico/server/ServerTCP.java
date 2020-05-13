@@ -1,5 +1,6 @@
 package pt.tecnico.server;
 
+import pt.tecnico.model.BRBroadcast;
 import pt.tecnico.model.MyCrypto;
 import pt.tecnico.model.ServerChannel;
 
@@ -37,11 +38,9 @@ public class ServerTCP {
         try {
             // We need the the path of the folder where to save the keys
             if(args.length != 3)
-                throw new IllegalArgumentException("Syntax: client <path/to/settings/file>");
+                throw new IllegalArgumentException("Syntax: client <path/to/settings/file> server_number port");
             // We need the the path of the folder where to save the keys
             Map<String, String> opts = parseOptions(args[0]);
-            if (!(opts.size() == 4 || opts.size() == 7))
-                throw new IllegalArgumentException("Some options are missing");
 
             PublicKey pub;
             PrivateKey priv;
@@ -64,11 +63,9 @@ public class ServerTCP {
             ports = ports.substring(1, ports.length()-1);
             String[] list = ports.split(",");
             List<ServerChannel> servers = new ArrayList<>();
-            List<Integer> portsAux = new ArrayList<>();
             for (int i = 0; i < list.length; i++) {
                 serverPublicKey = MyCrypto.getPublicKey(serverkeyStore,"server_"+i, serverKeyPasswd);
                 int portAux = Integer.parseInt(list[i]);
-                portsAux.add(portAux);
                 servers.add(new ServerChannel(portAux, serverPublicKey, pub, priv));
             }
             int F = Integer.parseInt(opts.get("f"));
@@ -87,29 +84,16 @@ public class ServerTCP {
         ServerSocket serverSocket = new ServerSocket(port, 0, InetAddress.getByName(IP));
         System.out.println("Server up, listening on " + IP + ":" + port + " and waiting for connections");
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+        BRBroadcast broadCast = new BRBroadcast(F, servers, port);
         //noinspection InfiniteLoopStatement
         while (true) {
             Socket socket = serverSocket.accept();
             socket.setSoTimeout(TIMEOUT * 1000);
-            System.out.println("Established connection with socket-> " +
-                    socket.getInetAddress().toString() + ":" + socket.getPort());
-            System.out.println("Creating new thread");
+            System.out.printf("Established connection with socket-> %s:%d in a new thread\n", socket.getInetAddress().toString(),socket.getPort());
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
-            ServerChannel serverChannel = null;
-            for (ServerChannel sc : servers) {
-                if (sc.port == socket.getPort()) {
-                    serverChannel = sc;
-                    break;
-                }
-            }
-            if (serverChannel != null) {
-                // server-server socket
-                threadPoolExecutor.execute(new ServerThread(twitter, privateKey, serverChannel,false));
-            } else {
-                // client-server socket
-                threadPoolExecutor.execute(new ServerThread(twitter, privateKey, socket, in, out, F, servers, port, true));
-            }
+            // client-server socket
+            threadPoolExecutor.execute(new ServerThread(twitter, privateKey, socket, in, out, F, servers, port, broadCast));
         }
     }
 
