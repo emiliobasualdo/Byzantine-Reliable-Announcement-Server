@@ -1,5 +1,7 @@
 
 Byzantine problem solution for reliable communication and registers.
+
+
 This application was built to experiment with the Byzantine crash-arbitrary problem.  
 The first part of the project was developed to be able to produce a public announcement without message encryption and be able to tell(on both the server and the client side) if the message was tampered with and ensuring non-repudiation. This was done using message signatures and a combination of message uuids.   
 A “hacker” can be placed in the middle to simulate a man-in-the-middle attack over the message(replay, tampering, etc) and the idea is that both the server and the client realize.
